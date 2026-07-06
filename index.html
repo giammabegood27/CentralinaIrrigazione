@@ -439,8 +439,8 @@
 
         let durate1 = [], durate2 = [];
         for (let i = 1; i <= 6; i++) {
-          durate1.push(Math.max(0, Math.min(255, parseInt(document.getElementById(`d${i}`).value) || 0)));
-          durate2.push(Math.max(0, Math.min(255, parseInt(document.getElementById(`d2_${i}`).value) || 0)));
+          durate1.push(Math.max(0, Math.min(1800, parseInt(document.getElementById(`d${i}`).value) || 0)));
+          durate2.push(Math.max(0, Math.min(1800, parseInt(document.getElementById(`d2_${i}`).value) || 0)));
         }
 
         let g1 = [], g2 = [];
