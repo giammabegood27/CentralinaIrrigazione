@@ -156,15 +156,28 @@
       document.getElementById('current-day').innerText = nomeGiorniEsteso[oggi.getDay()];
     }
 
-    // Richiesta di Connessione Web Bluetooth API
-  // Richiesta di Connessione Web Bluetooth API
+   // Richiesta di Connessione Web Bluetooth API con Reset dello Stato
     async function connettiBLE() {
+      // Se siamo già connessi, disconnettiamo prima in modo pulito
+      if (gattServer && gattServer.connected) {
+        console.log("Disconnessione pulita del canale precedente...");
+        await gattServer.disconnect();
+      }
+
+      // Reset delle variabili di stato prima di iniziare
+      gattServer = null;
+      txCharacteristic = null;
+      rxCharacteristic = null;
+
       try {
         console.log("Ricerca dispositivi BLE in corso...");
         const device = await navigator.bluetooth.requestDevice({
           filters: [{ name: 'Centralina_Irrigazione' }],
           optionalServices: [UUID_SERVIZIO]
         });
+
+        // Ascolta l'evento di disconnessione improvvisa del telefono per resettare l'interfaccia grafica
+        device.addEventListener('gattserverdisconnected', onDisconnected);
 
         document.getElementById('btn-connect').innerText = "CONNETTENDO...";
         gattServer = await device.gatt.connect();
@@ -177,25 +190,37 @@
         await txCharacteristic.startNotifications();
         txCharacteristic.addEventListener('characteristicvaluechanged', riceviNotificaStatoDati);
 
-        document.getElementById('btn-connect').className = "mt-4 bg-emerald-600 text-white font-bold py-2 px-6 rounded-xl inline-flex items-center gap-2 cursor-default";
-        document.getElementById('btn-connect').innerHTML = "<i class='fa-solid fa-circle-check'></i> CONNESSO";
+        document.getElementById('btn-connect').className = "mt-4 bg-emerald-600 text-white font-bold py-2 px-6 rounded-xl inline-flex items-center gap-2 cursor-pointer";
+        document.getElementById('btn-connect').innerHTML = "<i class='fa-solid fa-circle-check'></i> CONNESSO (Clicca per disconnettere)";
         console.log("BLE Connesso ed Attivo!");
 
-        // --- NUOVA LOGICA: INVIA L'ORARIO DEL TELEFONO IMMEDIATAMENTE DOPO LA CONNESSIONE ---
+        // Sincronizzazione orario immediata
         setTimeout(async () => {
           const oraDispositivo = new Date();
           const ore = oraDispositivo.getHours();
           const minuti = oraDispositivo.getMinutes();
-          const giornoSettimana = oraDispositivo.getDay(); // 0 = Domenica, 1 = Lunedì...
+          const giornoSettimana = oraDispositivo.getDay();
           
-          console.log(`Sincronizzazione orario: TIME:${ore},${minuti},${giornoSettimana}`);
           await inviaComandoBLE(`TIME:${ore},${minuti},${giornoSettimana}`);
-        }, 1000); // Aspetta 1 secondo per stabilizzare i canali BLE prima dell'invio
+        }, 1000);
 
       } catch (error) {
         console.error("Connessione BLE fallita:", error);
-        document.getElementById('btn-connect').innerText = "ERRORE - RIPROVA";
+        resetGraficaPulsante();
       }
+    }
+
+    // Funzione che viene chiamata se ti allontani dal raggio d'azione o se cade il segnale
+    function onDisconnected() {
+      console.log("Il dispositivo Bluetooth si è scollegato.");
+      resetGraficaPulsante();
+      forzaSpegniGraficaEHardware();
+    }
+
+    function resetGraficaPulsante() {
+      const btn = document.getElementById('btn-connect');
+      btn.className = "mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-xl transition cursor-pointer shadow-md inline-flex items-center gap-2";
+      btn.innerHTML = "<i class='fa-solid fa-bluetooth'></i> CONNETTI VIA BLUETOOTH";
     }
 
     // Parser asincrono quando l'Arduino sputa fuori i dati modificati
