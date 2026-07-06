@@ -1,0 +1,284 @@
+<!DOCTYPE HTML>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Centralina Irrigazione BLE 🌿</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link class="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .push-btn {
+      position: relative;
+      transition: all 0.05s ease;
+      box-shadow: 0 6px 0 #991b1b, 0 8px 12px rgba(0,0,0,0.4);
+    }
+    .push-btn:active, .push-btn.active-btn {
+      box-shadow: 0 2px 0 #166534, 0 3px 6px rgba(0,0,0,0.3) !important;
+      transform: translateY(4px);
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-4 md:p-8">
+
+  <div class="max-w-3xl mx-auto">
+    
+    <header class="text-center mb-8">
+      <h1 class="text-3xl md:text-4xl font-bold text-emerald-400 flex justify-center items-center gap-3">
+        <i class="fa-solid fa-seedling"></i> Centralina Irrigazione HMI
+      </h1>
+      
+      <button id="btn-connect" class="mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-xl transition cursor-pointer shadow-md inline-flex items-center gap-2" onclick="connettiBLE()">
+        <i class="fa-solid fa-bluetooth"></i> CONNETTI VIA BLUETOOTH
+      </button>
+
+      <div class="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-6 text-slate-400 mt-4 text-lg">
+        <p><i class="fa-regular fa-calendar-days mr-1 text-emerald-500"></i> Oggi è: <span id="current-day" class="font-bold text-slate-200">--</span></p>
+        <span class="hidden sm:inline text-slate-600">|</span>
+        <p><i class="fa-regular fa-clock mr-1 text-emerald-500"></i> Orario RTC: <span id="rtc-time" class="font-bold text-slate-200">--:--</span></p>
+      </div>
+    </header>
+
+    <section class="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 mb-6">
+      <h2 class="text-xl font-semibold mb-4 text-emerald-400 flex items-center gap-2 border-b border-slate-700 pb-2">
+        <i class="fa-solid fa-bolt"></i> Comandi Rapidi
+      </h2>
+      
+      <button class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl cursor-pointer transition mb-6 shadow-lg flex justify-center items-center gap-2" onclick="inviaComandoBLE('TEST')">
+        <i class="fa-solid fa-vial"></i> AVVIA CICLO DI TEST SEQUENZIALE (10s a zona)
+      </button>
+      
+      <h3 class="text-center font-medium text-slate-400 mb-4 text-sm tracking-wider uppercase">Attivazione Manuale Valvole</h3>
+      
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+        <button id="btn-z1" class="push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(1)">
+          <i class="fa-solid fa-faucet-drip text-xl"></i> Zona 1
+        </button>
+        <button id="btn-z2" class="push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(2)">
+          <i class="fa-solid fa-faucet-drip text-xl"></i> Zona 2
+        </button>
+        <button id="btn-z3" class="push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(3)">
+          <i class="fa-solid fa-faucet-drip text-xl"></i> Zona 3
+        </button>
+        <button id="btn-z4" class="push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(4)">
+          <i class="fa-solid fa-faucet-drip text-xl"></i> Zona 4
+        </button>
+        <button id="btn-z5" class="push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(5)">
+          <i class="fa-solid fa-faucet-drip text-xl"></i> Zona 5
+        </button>
+        <button id="btn-z6" class="push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(6)">
+          <i class="fa-solid fa-faucet-drip text-xl"></i> Zona 6
+        </button>
+      </div>
+      
+      <button class="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 px-4 rounded-xl cursor-pointer transition shadow-md flex justify-center items-center gap-2" onclick="forzaSpegniGraficaEHardware()">
+        <i class="fa-solid fa-circle-stop"></i> SPEGNI TUTTO / EMERGENZA
+      </button>
+    </section>
+
+    <section class="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700">
+      <h2 class="text-xl font-semibold mb-4 text-emerald-400 flex items-center gap-2 border-b border-slate-700 pb-2">
+        <i class="fa-solid fa-calendar-days"></i> Programmazione Sequenza
+      </h2>
+      
+      <form id="prog-form" onsubmit="salvaConfigurazione(event)" class="space-y-6">
+        <div class="flex items-center gap-4 bg-slate-900 p-4 rounded-xl border border-slate-700">
+          <label class="font-semibold text-slate-300">Orario di Partenza Unico:</label>
+          <div class="flex items-center gap-2">
+            <input type="number" id="ora" min="0" max="23" class="w-16 bg-slate-800 border border-slate-600 rounded-lg p-2 text-center text-lg font-bold text-emerald-400 focus:outline-none focus:border-emerald-500">
+            <span class="font-bold text-xl">:</span>
+            <input type="number" id="min" min="0" max="59" class="w-16 bg-slate-800 border border-slate-600 rounded-lg p-2 text-center text-lg font-bold text-emerald-400 focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Durata Singole Zone:</h3>
+          <div id="durate-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        </div>
+
+        <div>
+          <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Giorni di Attivazione:</h3>
+          <div id="giorni-container" class="flex justify-between bg-slate-900 p-4 rounded-xl border border-slate-700 overflow-x-auto gap-2"></div>
+        </div>
+
+        <button type="submit" class="w-full bg-slate-100 hover:bg-white text-slate-900 font-bold py-3 px-4 rounded-xl cursor-pointer transition shadow-lg flex justify-center items-center gap-2 text-lg">
+          <i class="fa-solid fa-floppy-disk"></i> SALVA CONFIGURAZIONE
+        </button>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    const UUID_SERVIZIO = "19b10000-e8f2-537e-4f6c-d104768a1214";
+    const UUID_RX = "19b10001-e8f2-537e-4f6c-d104768a1214";
+    const UUID_TX = "19b10002-e8f2-537e-4f6c-d104768a1214";
+
+    const nomeGiorni = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
+    const nomeGiorniEsteso = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
+    
+    let gattServer = null;
+    let txCharacteristic = null;
+    let rxCharacteristic = null;
+    let zonaManualeAttivaLocale = 0; 
+
+    window.onload = function() {
+      const durateDiv = document.getElementById('durate-container');
+      for (let i = 1; i <= 6; i++) {
+        durateDiv.innerHTML += `
+          <div class="flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-700">
+            <span class="font-medium text-slate-300">Zona ${i}</span>
+            <div class="flex items-center gap-2">
+              <input type="number" id="d${i}" min="0" max="255" class="w-16 bg-slate-800 border border-slate-600 rounded-lg p-1.5 text-center text-slate-200 focus:outline-none">
+              <span class="text-xs text-slate-500">sec</span>
+            </div>
+          </div>`;
+      }
+
+      const giorniDiv = document.getElementById('giorni-container');
+      nomeGiorni.forEach((giorno, index) => {
+        giorniDiv.innerHTML += `
+          <label class="flex flex-col items-center gap-1 cursor-pointer min-w-[40px]">
+            <input type="checkbox" id="g${index}" class="accent-emerald-500 h-4 w-4 rounded">
+            <span class="text-xs font-semibold text-slate-400">${giorno}</span>
+          </label>`;
+      });
+
+      aggiornaGiornoCorrente();
+    };
+
+    function aggiornaGiornoCorrente() {
+      const oggi = new Date();
+      document.getElementById('current-day').innerText = nomeGiorniEsteso[oggi.getDay()];
+    }
+
+    // Richiesta di Connessione Web Bluetooth API
+    async function connettiBLE() {
+      try {
+        console.log("Ricerca dispositivi BLE in corso...");
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ name: 'Centralina_Irrigazione' }],
+          optionalServices: [UUID_SERVIZIO]
+        });
+
+        document.getElementById('btn-connect').innerText = "CONNETTENDO...";
+        gattServer = await device.gatt.connect();
+        
+        const service = await gattServer.getPrimaryService(UUID_SERVIZIO);
+        rxCharacteristic = await service.getCharacteristic(UUID_RX);
+        txCharacteristic = await service.getCharacteristic(UUID_TX);
+
+        // Abilita le notifiche dall'Arduino (Sostituisce il vecchio polling)
+        await txCharacteristic.startNotifications();
+        txCharacteristic.addEventListener('characteristicvaluechanged', riceviNotificaStatoDati);
+
+        document.getElementById('btn-connect').className = "mt-4 bg-emerald-600 text-white font-bold py-2 px-6 rounded-xl inline-flex items-center gap-2 cursor-default";
+        document.getElementById('btn-connect').innerHTML = "<i class='fa-solid fa-circle-check'></i> CONNESSO";
+        console.log("BLE Connesso ed Attivo!");
+      } catch (error) {
+        console.error("Connessione BLE fallita:", error);
+        document.getElementById('btn-connect').innerText = "ERRORE - RIPROVA";
+      }
+    }
+
+    // Parser asincrono quando l'Arduino sputa fuori i dati modificati
+    function riceviNotificaStatoDati(event) {
+      let decoder = new TextDecoder('utf-8');
+      let stringaJson = decoder.decode(event.target.value);
+      
+      try {
+        let dati = JSON.parse(stringaJson);
+
+        document.getElementById('rtc-time').innerText = dati.rtc;
+        aggiornaGiornoCorrente();
+
+        if (document.activeElement.tagName !== 'INPUT') {
+          document.getElementById('ora').value = dati.h;
+          document.getElementById('min').value = dati.m;
+          for (let i = 0; i < 6; i++) document.getElementById(`d${i+1}`).value = dati.d[i];
+          for (let g = 0; g < 7; g++) document.getElementById(`g${g}`).checked = (dati.g[g] === 1);
+        }
+
+        let zonaAttivaReale = parseInt(dati.z);
+        let targetZona = (zonaAttivaReale > 0) ? zonaAttivaReale : zonaManualeAttivaLocale;
+
+        for (let i = 1; i <= 6; i++) {
+          let btn = document.getElementById(`btn-z${i}`);
+          if (targetZona === i) {
+            btn.classList.add('active-btn', 'bg-emerald-600', 'border-emerald-700');
+            btn.classList.remove('bg-red-700', 'border-red-800');
+          } else {
+            btn.classList.remove('active-btn', 'bg-emerald-600', 'border-emerald-700');
+            btn.classList.add('bg-red-700', 'border-red-800');
+          }
+        }
+      } catch(e) {
+        console.log("Errore parsing stringa parziale BLE");
+      }
+    }
+
+    async function inviaComandoBLE(stringaComando) {
+      if (!rxCharacteristic) {
+        alert("Prima connetti la centralina via Bluetooth!");
+        return;
+      }
+      try {
+        let encoder = new TextEncoder();
+        await rxCharacteristic.writeValue(encoder.encode(stringaComando));
+      } catch(err) {
+        console.error("Errore di invio BLE", err);
+      }
+    }
+
+    async function clickPushBtn(zona) {
+      let btnSelezionato = document.getElementById(`btn-z${zona}`);
+      
+      if (btnSelezionato.classList.contains('active-btn')) {
+        zonaManualeAttivaLocale = 0;
+        btnSelezionato.classList.remove('active-btn', 'bg-emerald-600', 'border-emerald-700');
+        btnSelezionato.classList.add('bg-red-700', 'border-red-800');
+        await inviaComandoBLE('STOP');
+      } else {
+        for (let i = 1; i <= 6; i++) {
+          let b = document.getElementById(`btn-z${i}`);
+          b.classList.remove('active-btn', 'bg-emerald-600', 'border-emerald-700');
+          b.classList.add('bg-red-700', 'border-red-800');
+        }
+        
+        zonaManualeAttivaLocale = zona; 
+        btnSelezionato.classList.add('active-btn', 'bg-emerald-600', 'border-emerald-700');
+        btnSelezionato.classList.remove('bg-red-700', 'border-red-800');
+        await inviaComandoBLE(`MANUAL:${zona}`);
+      }
+    }
+
+    async function forzaSpegniGraficaEHardware() {
+      zonaManualeAttivaLocale = 0;
+      for (let i = 1; i <= 6; i++) {
+        let b = document.getElementById(`btn-z${i}`);
+        b.classList.remove('active-btn', 'bg-emerald-600', 'border-emerald-700');
+        b.classList.add('bg-red-700', 'border-red-800');
+      }
+      await inviaComandoBLE('STOP');
+    }
+
+    async function salvaConfigurazione(event) {
+      event.preventDefault();
+      let ora = document.getElementById('ora').value;
+      let min = document.getElementById('min').value;
+      
+      // Costruisce stringa compatta: SAVE:ora,min,d1,d2,d3,d4,d5,d6,g0,g1...
+      let str = `SAVE:${ora},${min}`;
+      for (let i = 1; i <= 6; i++) str += `,${document.getElementById(`d${i}`).value}`;
+      for (let g = 0; g < 7; g++) str += `,${document.getElementById(`g${g}`).checked ? '1' : '0'}`;
+
+      await inviaComandoBLE(str);
+      alert("Configurazione inviata e salvata!");
+    }
+  </script>
+</body>
+</html>
