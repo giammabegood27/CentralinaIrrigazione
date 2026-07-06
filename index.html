@@ -247,6 +247,8 @@
         if (document.activeElement.tagName !== 'INPUT') {
           document.getElementById('ora').value = dati.h;
           document.getElementById('min').value = dati.m;
+          document.getElementById('ora2').value = dati.h2; // NUOVO
+          document.getElementById('min2').value = dati.m2; // NUOVO
           for (let i = 0; i < 6; i++) document.getElementById(`d${i+1}`).value = dati.d[i];
           for (let g = 0; g < 7; g++) document.getElementById(`g${g}`).checked = (dati.g[g] === 1);
         }
