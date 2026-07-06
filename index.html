@@ -116,7 +116,7 @@
           <div id="giorni-container" class="flex justify-between bg-slate-900 p-4 rounded-xl border border-slate-700 overflow-x-auto gap-2"></div>
         </div>
 
-        <button type="submit" class="w-full bg-slate-100 hover:bg-white text-slate-900 font-bold py-3 px-4 rounded-xl cursor-pointer transition shadow-lg flex justify-center items-center gap-2 text-lg">
+        <button type="button" class="w-full bg-slate-100 hover:bg-white text-slate-900 font-bold py-3 px-4 rounded-xl cursor-pointer transition shadow-lg flex justify-center items-center gap-2 text-lg" onclick="salvaConfigurazione()">
           <i class="fa-solid fa-floppy-disk"></i> SALVA CONFIGURAZIONE
         </button>
       </form>
@@ -316,45 +316,44 @@
       await inviaComandoBLE('STOP');
     }
 
-  async function salvaConfigurazione(event) {
-      if (event && typeof event.preventDefault === 'function') {
-        event.preventDefault();
-      }
-      
-      console.log("Inizio processo di salvataggio sicuro...");
+  async function salvaConfigurazione() {
+      console.log("Pulsante cliccato. Estrazione dati...");
 
       try {
-        // Forza i valori a essere numeri interi puliti (se vuoti o errati diventano 0)
+        // Recupero valori dai campi
         const ora1 = Math.max(0, parseInt(document.getElementById('ora').value) || 0);
         const min1 = Math.max(0, parseInt(document.getElementById('min').value) || 0);
         const ora2 = Math.max(0, parseInt(document.getElementById('ora2').value) || 0);
         const min2 = Math.max(0, parseInt(document.getElementById('min2').value) || 0);
         
-        // Recupero e pulizia Durate Zone
         let durate = [];
         for (let i = 1; i <= 6; i++) {
           const el = document.getElementById(`d${i}`);
-          const valore = el ? parseInt(el.value) : 0;
-          durate.push(Math.max(0, valore || 0)); // Evita NaN o numeri negativi
+          durate.push(Math.max(0, (el ? parseInt(el.value) : 0) || 0));
         }
         
-        // Recupero e pulizia Giorni Settimana
         let giorni = [];
         for (let g = 0; g < 7; g++) {
           const el = document.getElementById(`g${g}`);
           giorni.push(el && el.checked ? 1 : 0);
         }
         
-        // Costruzione della stringa comando rigida senza spazi
+        // Creazione stringa comando
         const stringaComando = `SAVE:${ora1},${min1},${ora2},${min2},${durate.join(',')},${giorni.join(',')}`;
-        console.log("Stringa inviata:", stringaComando);
+        console.log("Tentativo di invio BLE:", stringaComando);
         
-        if (typeof inviaComandoBLE === 'function') {
-          await inviaComandoBLE(stringaComando);
+        // Invio diretto
+        if (rxCharacteristic) {
+          let encoder = new TextEncoder();
+          await rxCharacteristic.writeValue(encoder.encode(stringaComando));
+          alert("Configurazione inviata con successo!");
+        } else {
+          alert("Errore: La centralina non è connessa via Bluetooth!");
         }
 
       } catch (errore) {
-        console.error("Errore durante il salvataggio:", errore);
+        console.error("Errore nel JavaScript di salvataggio:", errore);
+        alert("Errore interno alla pagina web. Controlla la console.");
       }
     }
   </script>
