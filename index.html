@@ -116,13 +116,18 @@
       </div>
 
       <div class="mb-6">
-        <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3"><i class="fa-solid fa-hourglass-end text-emerald-500 mr-1"></i> Durate Zone - Start 2:</h3>
+        <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3"><i class="fa-solid fa-calendar-day text-emerald-500 mr-1"></i> Giorni di Attivazione - Start 1:</h3>
+        <div id="giorni-container" class="flex justify-between bg-slate-900 p-4 rounded-xl border border-slate-700 overflow-x-auto gap-2"></div>
+      </div>
+
+      <div class="mb-6 border-t border-slate-700/50 pt-4">
+        <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3"><i class="fa-solid fa-hourglass-end text-blue-500 mr-1"></i> Durate Zone - Start 2:</h3>
         <div id="durate2-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
       </div>
 
       <div class="mb-6">
-        <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Giorni di Attivazione:</h3>
-        <div id="giorni-container" class="flex justify-between bg-slate-900 p-4 rounded-xl border border-slate-700 overflow-x-auto gap-2"></div>
+        <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3"><i class="fa-solid fa-calendar-day text-blue-500 mr-1"></i> Giorni di Attivazione - Start 2:</h3>
+        <div id="giorni2-container" class="flex justify-between bg-slate-900 p-4 rounded-xl border border-slate-700 overflow-x-auto gap-2"></div>
       </div>
 
       <button type="button" class="w-full bg-slate-100 hover:bg-white text-slate-900 font-bold py-3 px-4 rounded-xl cursor-pointer transition shadow-lg flex justify-center items-center gap-2 text-lg" onclick="salvaConfigurazione()">
@@ -145,7 +150,7 @@
     let zonaManualeAttivaLocale = 0; 
 
     window.onload = function() {
-      // Generazione griglia durate Start 1
+      // Generazione durate Start 1
       const durateDiv = document.getElementById('durate-container');
       for (let i = 1; i <= 6; i++) {
         durateDiv.innerHTML += `
@@ -158,7 +163,7 @@
           </div>`;
       }
 
-      // Generazione griglia durate Start 2
+      // Generazione durate Start 2
       const durate2Div = document.getElementById('durate2-container');
       for (let i = 1; i <= 6; i++) {
         durate2Div.innerHTML += `
@@ -171,12 +176,22 @@
           </div>`;
       }
 
-      // Generazione Checkbox Giorni
+      // Generazione Giorni Start 1
       const giorniDiv = document.getElementById('giorni-container');
       nomeGiorni.forEach((giorno, index) => {
         giorniDiv.innerHTML += `
           <label class="flex flex-col items-center gap-1 cursor-pointer min-w-[40px]">
             <input type="checkbox" id="g${index}" class="accent-emerald-500 h-4 w-4 rounded">
+            <span class="text-xs font-semibold text-slate-400">${giorno}</span>
+          </label>`;
+      });
+
+      // Generazione Giorni Start 2 (NUOVO)
+      const giorni2Div = document.getElementById('giorni2-container');
+      nomeGiorni.forEach((giorno, index) => {
+        giorni2Div.innerHTML += `
+          <label class="flex flex-col items-center gap-1 cursor-pointer min-w-[40px]">
+            <input type="checkbox" id="g2_${index}" class="accent-blue-500 h-4 w-4 rounded">
             <span class="text-xs font-semibold text-slate-400">${giorno}</span>
           </label>`;
       });
@@ -191,58 +206,33 @@
 
     async function connettiBLE() {
       if (gattServer && gattServer.connected) {
-        console.log("Disconnessione pulita del canale precedente...");
         await gattServer.disconnect();
       }
-
-      gattServer = null;
-      txCharacteristic = null;
-      rxCharacteristic = null;
-
+      gattServer = null; txCharacteristic = null; rxCharacteristic = null;
       try {
-        console.log("Ricerca dispositivi BLE in corso...");
         const device = await navigator.bluetooth.requestDevice({
           filters: [{ name: 'Centralina_Irrigazione' }],
           optionalServices: [UUID_SERVIZIO]
         });
-
         device.addEventListener('gattserverdisconnected', onDisconnected);
-
         document.getElementById('btn-connect').innerText = "CONNETTENDO...";
         gattServer = await device.gatt.connect();
-        
         const service = await gattServer.getPrimaryService(UUID_SERVIZIO);
         rxCharacteristic = await service.getCharacteristic(UUID_RX);
         txCharacteristic = await service.getCharacteristic(UUID_TX);
-
         await txCharacteristic.startNotifications();
         txCharacteristic.addEventListener('characteristicvaluechanged', riceviNotificaStatoDati);
-
         document.getElementById('btn-connect').className = "mt-4 bg-emerald-600 text-white font-bold py-2 px-6 rounded-xl inline-flex items-center gap-2 cursor-pointer";
-        document.getElementById('btn-connect').innerHTML = "<i class='fa-solid fa-circle-check'></i> CONNESSO (Clicca per disconnettere)";
-        console.log("BLE Connesso ed Attivo!");
-
+        document.getElementById('btn-connect').innerHTML = "<i class='fa-solid fa-circle-check'></i> CONNESSO";
+        
         setTimeout(async () => {
-          const oraDispositivo = new Date();
-          const ore = oraDispositivo.getHours();
-          const minuti = oraDispositivo.getMinutes();
-          const giornoSettimana = oraDispositivo.getDay();
-          
-          await inviaComandoBLE(`TIME:${ore},${minuti},${giornoSettimana}`);
+          const d = new Date();
+          await inviaComandoBLE(`TIME:${d.getHours()},${d.getMinutes()},${d.getDay()}`);
         }, 1000);
-
-      } catch (error) {
-        console.error("Connessione BLE fallita:", error);
-        resetGraficaPulsante();
-      }
+      } catch (error) { resetGraficaPulsante(); }
     }
 
-    function onDisconnected() {
-      console.log("Il dispositivo Bluetooth si è scollegato.");
-      resetGraficaPulsante();
-      forzaSpegniGraficaEHardware();
-    }
-
+    function onDisconnected() { resetGraficaPulsante(); forzaSpegniGraficaEHardware(); }
     function resetGraficaPulsante() {
       const btn = document.getElementById('btn-connect');
       btn.className = "mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-xl transition cursor-pointer shadow-md inline-flex items-center gap-2";
@@ -251,142 +241,87 @@
 
     function riceviNotificaStatoDati(event) {
       let decoder = new TextDecoder('utf-8');
-      let stringaJson = decoder.decode(event.target.value);
+      let dati = JSON.parse(decoder.decode(event.target.value));
       
       try {
-        let dati = JSON.parse(stringaJson);
-
         document.getElementById('rtc-time').innerText = dati.rtc;
-        aggiornaGiornoCorrente();
-
         if (document.activeElement.tagName !== 'INPUT') {
           document.getElementById('ora').value = dati.h;
           document.getElementById('min').value = dati.m;
           document.getElementById('start1_attivo').checked = (dati.en1 === 1);
-          
           document.getElementById('ora2').value = dati.h2; 
           document.getElementById('min2').value = dati.m2; 
           document.getElementById('start2_attivo').checked = (dati.en2 === 1);
 
-          // Assegnazione durate nei relativi input
           for (let i = 0; i < 6; i++) {
             document.getElementById(`d${i+1}`).value = dati.d[i];
-            if(dati.d2) {
-              document.getElementById(`d2_${i+1}`).value = dati.d2[i];
-            }
+            if(dati.d2) document.getElementById(`d2_${i+1}`).value = dati.d2[i];
           }
-          for (let g = 0; g < 7; g++) document.getElementById(`g${g}`).checked = (dati.g[g] === 1);
+          for (let g = 0; g < 7; g++) {
+            document.getElementById(`g${g}`).checked = (dati.g[g] === 1);
+            if(dati.g2) document.getElementById(`g2_${g}`).checked = (dati.g2[g] === 1);
+          }
         }
 
-        let zonaAttivaReale = parseInt(dati.z);
-        let targetZona = (zonaAttivaReale > 0) ? zonaAttivaReale : zonaManualeAttivaLocale;
-
+        let targetZona = (parseInt(dati.z) > 0) ? parseInt(dati.z) : zonaManualeAttivaLocale;
         for (let i = 1; i <= 6; i++) {
           let btn = document.getElementById(`btn-z${i}`);
           if (targetZona === i) {
-            btn.classList.add('active-btn', 'bg-emerald-600', 'border-emerald-700');
-            btn.classList.remove('bg-red-700', 'border-red-800');
+            btn.className = "push-btn active-btn bg-emerald-600 border border-emerald-700 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2";
           } else {
-            btn.classList.remove('active-btn', 'bg-emerald-600', 'border-emerald-700');
-            btn.classList.add('bg-red-700', 'border-red-800');
+            btn.className = "push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2";
           }
         }
-      } catch(e) {
-        console.log("Errore parsing stringa parziale BLE");
-      }
+      } catch(e) {}
     }
 
-    async function inviaComandoBLE(stringaComando) {
-      if (!rxCharacteristic) {
-        alert("Prima connetti la centralina via Bluetooth!");
-        return;
-      }
-      try {
-        let encoder = new TextEncoder();
-        await rxCharacteristic.writeValue(encoder.encode(stringaComando));
-      } catch(err) {
-        console.error("Errore di invio BLE", err);
-      }
+    async function inviaComandoBLE(comando) {
+      if (!rxCharacteristic) return;
+      try { await rxCharacteristic.writeValue(new TextEncoder().encode(comando)); } catch(err) {}
     }
 
     async function clickPushBtn(zona) {
-      let btnSelezionato = document.getElementById(`btn-z${zona}`);
-      
-      if (btnSelezionato.classList.contains('active-btn')) {
-        zonaManualeAttivaLocale = 0;
-        btnSelezionato.classList.remove('active-btn', 'bg-emerald-600', 'border-emerald-700');
-        btnSelezionato.classList.add('bg-red-700', 'border-red-800');
-        await inviaComandoBLE('STOP');
+      let btn = document.getElementById(`btn-z${zona}`);
+      if (btn.classList.contains('active-btn')) {
+        zonaManualeAttivaLocale = 0; await inviaComandoBLE('STOP');
       } else {
-        for (let i = 1; i <= 6; i++) {
-          let b = document.getElementById(`btn-z${i}`);
-          b.classList.remove('active-btn', 'bg-emerald-600', 'border-emerald-700');
-          b.classList.add('bg-red-700', 'border-red-800');
-        }
-        
-        zonaManualeAttivaLocale = zona; 
-        btnSelezionato.classList.add('active-btn', 'bg-emerald-600', 'border-emerald-700');
-        btnSelezionato.classList.remove('bg-red-700', 'border-red-800');
-        await inviaComandoBLE(`MANUAL:${zona}`);
+        zonaManualeAttivaLocale = zona; await inviaComandoBLE(`MANUAL:${zona}`);
       }
     }
 
-    async function forzaSpegniGraficaEHardware() {
-      zonaManualeAttivaLocale = 0;
-      for (let i = 1; i <= 6; i++) {
-        let b = document.getElementById(`btn-z${i}`);
-        b.classList.remove('active-btn', 'bg-emerald-600', 'border-emerald-700');
-        b.classList.add('bg-red-700', 'border-red-800');
-      }
-      await inviaComandoBLE('STOP');
-    }
+    async function forzaSpegniGraficaEHardware() { zonaManualeAttivaLocale = 0; await inviaComandoBLE('STOP'); }
 
     async function salvaConfigurazione() {
-      console.log("Pulsante cliccato. Estrazione dati estesi...");
-
       try {
         const ora1 = Math.max(0, parseInt(document.getElementById('ora').value) || 0);
         const min1 = Math.max(0, parseInt(document.getElementById('min').value) || 0);
         const en1 = document.getElementById('start1_attivo').checked ? 1 : 0;
-        
         const ora2 = Math.max(0, parseInt(document.getElementById('ora2').value) || 0);
         const min2 = Math.max(0, parseInt(document.getElementById('min2').value) || 0);
         const en2 = document.getElementById('start2_attivo').checked ? 1 : 0;
         
-        let durate1 = [];
+        let durate1 = [], durate2 = [];
         for (let i = 1; i <= 6; i++) {
-          const el = document.getElementById(`d${i}`);
-          durate1.push(Math.max(0, (el ? parseInt(el.value) : 0) || 0));
+          durate1.push(Math.max(0, parseInt(document.getElementById(`d${i}`).value) || 0));
+          durate2.push(Math.max(0, parseInt(document.getElementById(`d2_${i}`).value) || 0));
         }
 
-        let durate2 = [];
-        for (let i = 1; i <= 6; i++) {
-          const el = document.getElementById(`d2_${i}`);
-          durate2.push(Math.max(0, (el ? parseInt(el.value) : 0) || 0));
-        }
-        
-        let giorni = [];
+        let g1 = [], g2 = [];
         for (let g = 0; g < 7; g++) {
-          const el = document.getElementById(`g${g}`);
-          giorni.push(el && el.checked ? 1 : 0);
+          g1.push(document.getElementById(`g${g}`).checked ? 1 : 0);
+          g2.push(document.getElementById(`g2_${g}`).checked ? 1 : 0);
         }
         
-        // Generazione stringa comando coerente con sscanf a 25 elementi del firmware
-        const stringaComando = `SAVE:${ora1},${min1},${en1},${ora2},${min2},${en2},${durate1.join(',')},${durate2.join(',')},${giorni.join(',')}`;
-        console.log("Tentativo di invio BLE:", stringaComando);
+        // Costruzione comando a 32 parametri
+        const stringaComando = `SAVE:${ora1},${min1},${en1},${ora2},${min2},${en2},${durate1.join(',')},${durate2.join(',')},${g1.join(',')},${g2.join(',')}`;
         
         if (rxCharacteristic) {
-          let encoder = new TextEncoder();
-          await rxCharacteristic.writeValue(encoder.encode(stringaComando));
-          alert("Configurazione inviata con successo!");
+          await rxCharacteristic.writeValue(new TextEncoder().encode(stringaComando));
+          alert("Configurazione salvata con successo!");
         } else {
-          alert("Errore: La centralina non è connessa via Bluetooth!");
+          alert("Errore: Centralina non connessa!");
         }
-
-      } catch (errore) {
-        console.error("Errore nel JavaScript di salvataggio:", errore);
-        alert("Errore interno alla pagina web. Controlla la console.");
-      }
+      } catch (errore) { alert("Errore di salvataggio. Controlla la console."); }
     }
   </script>
 </body>
