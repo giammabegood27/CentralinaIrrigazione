@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Centralina Irrigazione BLE 🌿</title>
-  
+
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <link class="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,20 +22,67 @@
       box-shadow: 0 2px 0 #166534, 0 3px 6px rgba(0,0,0,0.3) !important;
       transform: translateY(4px);
     }
+    .push-btn:disabled, .action-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      box-shadow: none !important;
+      transform: none !important;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      display: inline-block;
+      width: 1em; height: 1em;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    #toast-container {
+      position: fixed;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      width: min(90vw, 420px);
+    }
+    .toast {
+      padding: 0.75rem 1rem;
+      border-radius: 0.75rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+      animation: toast-in 0.2s ease-out;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .toast-success { background: #059669; color: white; }
+    .toast-error { background: #dc2626; color: white; }
+    .toast-info { background: #334155; color: #e2e8f0; border: 1px solid #475569; }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-4 md:p-8">
 
+  <div id="toast-container" aria-live="polite"></div>
+
   <div class="max-w-3xl mx-auto">
-    
+
     <header class="text-center mb-8">
       <h1 class="text-3xl md:text-4xl font-bold text-emerald-400 flex justify-center items-center gap-3">
         <i class="fa-solid fa-seedling"></i> Signoretti Irrigazione
       </h1>
-      
+
       <button id="btn-connect" class="mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-xl transition cursor-pointer shadow-md inline-flex items-center gap-2" onclick="connettiBLE()">
         <i class="fa-solid fa-bluetooth"></i> CONNETTI VIA BLUETOOTH
       </button>
+      <p id="connection-hint" class="text-xs text-slate-500 mt-2 min-h-[1rem]"></p>
 
       <div class="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-6 text-slate-400 mt-4 text-lg">
         <p><i class="fa-regular fa-calendar-days mr-1 text-emerald-500"></i> Oggi è: <span id="current-day" class="font-bold text-slate-200">--</span></p>
@@ -48,35 +95,35 @@
       <h2 class="text-xl font-semibold mb-4 text-emerald-400 flex items-center gap-2 border-b border-slate-700 pb-2">
         <i class="fa-solid fa-bolt"></i> Comandi Rapidi
       </h2>
-      
-      <button class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl cursor-pointer transition mb-6 shadow-lg flex justify-center items-center gap-2" onclick="inviaComandoBLE('TEST')">
+
+      <button id="btn-test" class="action-btn w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl cursor-pointer transition mb-6 shadow-lg flex justify-center items-center gap-2" onclick="inviaComandoBLE('TEST', 'Ciclo di test avviato')" disabled>
         <i class="fa-solid fa-vial"></i> AVVIA CICLO DI TEST SEQUENZIALE (10s a zona)
       </button>
-      
+
       <h3 class="text-center font-medium text-slate-400 mb-4 text-sm tracking-wider uppercase">Attivazione Manuale Valvole</h3>
-      
+
       <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-        <button id="btn-z1" class="push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(1)">
+        <button id="btn-z1" class="push-btn action-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(1)" disabled>
           <i class="fa-solid fa-faucet-drip text-xl"></i> Zona 1
         </button>
-        <button id="btn-z2" class="push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(2)">
+        <button id="btn-z2" class="push-btn action-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(2)" disabled>
           <i class="fa-solid fa-faucet-drip text-xl"></i> Zona 2
         </button>
-        <button id="btn-z3" class="push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(3)">
+        <button id="btn-z3" class="push-btn action-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(3)" disabled>
           <i class="fa-solid fa-faucet-drip text-xl"></i> Zona 3
         </button>
-        <button id="btn-z4" class="push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(4)">
+        <button id="btn-z4" class="push-btn action-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(4)" disabled>
           <i class="fa-solid fa-faucet-drip text-xl"></i> Zona 4
         </button>
-        <button id="btn-z5" class="push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(5)">
+        <button id="btn-z5" class="push-btn action-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(5)" disabled>
           <i class="fa-solid fa-faucet-drip text-xl"></i> Zona 5
         </button>
-        <button id="btn-z6" class="push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(6)">
+        <button id="btn-z6" class="push-btn action-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2" onclick="clickPushBtn(6)" disabled>
           <i class="fa-solid fa-faucet-drip text-xl"></i> Zona 6
         </button>
       </div>
-      
-      <button class="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 px-4 rounded-xl cursor-pointer transition shadow-md flex justify-center items-center gap-2" onclick="forzaSpegniGraficaEHardware()">
+
+      <button id="btn-stop" class="action-btn w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 px-4 rounded-xl cursor-pointer transition shadow-md flex justify-center items-center gap-2" onclick="forzaSpegniGraficaEHardware()" disabled>
         <i class="fa-solid fa-circle-stop"></i> SPEGNI TUTTO / EMERGENZA
       </button>
     </section>
@@ -85,7 +132,7 @@
       <h2 class="text-xl font-semibold mb-4 text-emerald-400 flex items-center gap-2 border-b border-slate-700 pb-2">
         <i class="fa-solid fa-calendar-days"></i> Programmazione Sequenza
       </h2>
-      
+
       <div class="flex flex-col gap-4 bg-slate-900 p-4 rounded-xl border border-slate-700 mb-6">
         <div class="flex items-center justify-between sm:justify-start gap-4">
           <label class="font-semibold text-slate-300 w-44 flex items-center gap-2">
@@ -130,7 +177,7 @@
         <div id="giorni2-container" class="flex justify-between bg-slate-900 p-4 rounded-xl border border-slate-700 overflow-x-auto gap-2"></div>
       </div>
 
-      <button type="button" class="w-full bg-slate-100 hover:bg-white text-slate-900 font-bold py-3 px-4 rounded-xl cursor-pointer transition shadow-lg flex justify-center items-center gap-2 text-lg" onclick="salvaConfigurazione()">
+      <button type="button" id="btn-save" class="action-btn w-full bg-slate-100 hover:bg-white text-slate-900 font-bold py-3 px-4 rounded-xl cursor-pointer transition shadow-lg flex justify-center items-center gap-2 text-lg" onclick="salvaConfigurazione()" disabled>
         <i class="fa-solid fa-floppy-disk"></i> SALVA CONFIGURAZIONE
       </button>
     </section>
@@ -143,14 +190,16 @@
 
     const nomeGiorni = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
     const nomeGiorniEsteso = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
-    
+
     let gattServer = null;
     let txCharacteristic = null;
     let rxCharacteristic = null;
-    let zonaManualeAttivaLocale = 0; 
+    let zonaManualeAttivaLocale = 0;
+
+    const ACTION_BUTTON_IDS = ['btn-test', 'btn-z1', 'btn-z2', 'btn-z3', 'btn-z4', 'btn-z5', 'btn-z6', 'btn-stop', 'btn-save'];
 
     window.onload = function() {
-      // Generazione durate Start 1 (RIPRISTINATO sec)
+      // Generazione durate Start 1
       const durateDiv = document.getElementById('durate-container');
       for (let i = 1; i <= 6; i++) {
         durateDiv.innerHTML += `
@@ -163,7 +212,7 @@
           </div>`;
       }
 
-      // Generazione durate Start 2 (RIPRISTINATO sec)
+      // Generazione durate Start 2
       const durate2Div = document.getElementById('durate2-container');
       for (let i = 1; i <= 6; i++) {
         durate2Div.innerHTML += `
@@ -196,7 +245,24 @@
           </label>`;
       });
 
+      // Clamp automatico sui campi numerici (ore/minuti/secondi)
+      document.querySelectorAll('input[type="number"]').forEach(input => {
+        input.addEventListener('change', () => {
+          const min = input.min !== '' ? parseInt(input.min) : -Infinity;
+          const max = input.max !== '' ? parseInt(input.max) : Infinity;
+          let val = parseInt(input.value);
+          if (isNaN(val)) val = min !== -Infinity ? min : 0;
+          input.value = Math.min(max, Math.max(min, val));
+        });
+      });
+
       aggiornaGiornoCorrente();
+
+      if (!navigator.bluetooth) {
+        document.getElementById('connection-hint').innerText = "Questo browser non supporta il Web Bluetooth. Usa Chrome o Edge su desktop/Android.";
+        document.getElementById('btn-connect').disabled = true;
+        document.getElementById('btn-connect').classList.add('opacity-50', 'cursor-not-allowed');
+      }
     };
 
     function aggiornaGiornoCorrente() {
@@ -204,62 +270,120 @@
       document.getElementById('current-day').innerText = nomeGiorniEsteso[oggi.getDay()];
     }
 
+    function mostraToast(messaggio, tipo = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const icone = { success: 'fa-circle-check', error: 'fa-triangle-exclamation', info: 'fa-circle-info' };
+      toast.className = `toast toast-${tipo}`;
+      toast.innerHTML = `<i class="fa-solid ${icone[tipo] || icone.info}"></i><span>${messaggio}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.transition = 'opacity 0.3s ease';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    }
+
+    function impostaAbilitazioneComandi(abilitato) {
+      ACTION_BUTTON_IDS.forEach(id => {
+        document.getElementById(id).disabled = !abilitato;
+      });
+    }
+
     async function connettiBLE() {
+      if (!navigator.bluetooth) {
+        mostraToast("Web Bluetooth non supportato da questo browser.", "error");
+        return;
+      }
       if (gattServer && gattServer.connected) {
         await gattServer.disconnect();
       }
       gattServer = null; txCharacteristic = null; rxCharacteristic = null;
+
+      const btn = document.getElementById('btn-connect');
+      const hint = document.getElementById('connection-hint');
+      btn.disabled = true;
+      btn.className = "mt-4 bg-blue-700 text-white font-bold py-2 px-6 rounded-xl inline-flex items-center gap-2 cursor-wait opacity-90";
+      btn.innerHTML = "<span class='spinner'></span> RICERCA DISPOSITIVO...";
+      hint.innerText = "";
+
       try {
         const device = await navigator.bluetooth.requestDevice({
           filters: [{ name: 'Centralina_Irrigazione' }],
           optionalServices: [UUID_SERVIZIO]
         });
         device.addEventListener('gattserverdisconnected', onDisconnected);
-        document.getElementById('btn-connect').innerText = "CONNETTENDO...";
+        btn.innerHTML = "<span class='spinner'></span> CONNETTENDO...";
+
         gattServer = await device.gatt.connect();
         const service = await gattServer.getPrimaryService(UUID_SERVIZIO);
         rxCharacteristic = await service.getCharacteristic(UUID_RX);
         txCharacteristic = await service.getCharacteristic(UUID_TX);
         await txCharacteristic.startNotifications();
         txCharacteristic.addEventListener('characteristicvaluechanged', riceviNotificaStatoDati);
-        document.getElementById('btn-connect').className = "mt-4 bg-emerald-600 text-white font-bold py-2 px-6 rounded-xl inline-flex items-center gap-2 cursor-pointer";
-        document.getElementById('btn-connect').innerHTML = "<i class='fa-solid fa-circle-check'></i> CONNESSO";
-        
+
+        btn.disabled = false;
+        btn.className = "mt-4 bg-emerald-600 text-white font-bold py-2 px-6 rounded-xl inline-flex items-center gap-2 cursor-pointer";
+        btn.innerHTML = "<i class='fa-solid fa-circle-check'></i> CONNESSO";
+        impostaAbilitazioneComandi(true);
+        mostraToast("Connesso alla centralina", "success");
+
         setTimeout(async () => {
           const d = new Date();
           await inviaComandoBLE(`TIME:${d.getHours()},${d.getMinutes()},${d.getDay()}`);
         }, 1000);
-      } catch (error) { resetGraficaPulsante(); }
+      } catch (error) {
+        resetGraficaPulsante();
+        impostaAbilitazioneComandi(false);
+        if (error && error.name === 'NotFoundError') {
+          hint.innerText = "Nessun dispositivo selezionato.";
+        } else {
+          hint.innerText = "Connessione fallita. Verifica che la centralina sia accesa e nel raggio.";
+          mostraToast("Connessione fallita", "error");
+        }
+      }
     }
 
-    function onDisconnected() { resetGraficaPulsante(); forzaSpegniGraficaEHardware(); }
+    function onDisconnected() {
+      resetGraficaPulsante();
+      impostaAbilitazioneComandi(false);
+      zonaManualeAttivaLocale = 0;
+      mostraToast("Centralina disconnessa", "error");
+    }
+
     function resetGraficaPulsante() {
       const btn = document.getElementById('btn-connect');
+      btn.disabled = false;
       btn.className = "mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-xl transition cursor-pointer shadow-md inline-flex items-center gap-2";
       btn.innerHTML = "<i class='fa-solid fa-bluetooth'></i> CONNETTI VIA BLUETOOTH";
     }
 
     function riceviNotificaStatoDati(event) {
       let decoder = new TextDecoder('utf-8');
-      let dati = JSON.parse(decoder.decode(event.target.value));
-      
+      let dati;
+      try {
+        dati = JSON.parse(decoder.decode(event.target.value));
+      } catch (e) {
+        return; // pacchetto non valido, ignora senza rompere lo stato dell'interfaccia
+      }
+
       try {
         document.getElementById('rtc-time').innerText = dati.rtc;
         if (document.activeElement.tagName !== 'INPUT') {
           document.getElementById('ora').value = dati.h;
           document.getElementById('min').value = dati.m;
           document.getElementById('start1_attivo').checked = (dati.en1 === 1);
-          document.getElementById('ora2').value = dati.h2; 
-          document.getElementById('min2').value = dati.m2; 
+          document.getElementById('ora2').value = dati.h2;
+          document.getElementById('min2').value = dati.m2;
           document.getElementById('start2_attivo').checked = (dati.en2 === 1);
 
           for (let i = 0; i < 6; i++) {
             document.getElementById(`d${i+1}`).value = dati.d[i];
-            if(dati.d2) document.getElementById(`d2_${i+1}`).value = dati.d2[i];
+            if (dati.d2) document.getElementById(`d2_${i+1}`).value = dati.d2[i];
           }
           for (let g = 0; g < 7; g++) {
             document.getElementById(`g${g}`).checked = (dati.g[g] === 1);
-            if(dati.g2) document.getElementById(`g2_${g}`).checked = (dati.g2[g] === 1);
+            if (dati.g2) document.getElementById(`g2_${g}`).checked = (dati.g2[g] === 1);
           }
         }
 
@@ -267,43 +391,56 @@
         for (let i = 1; i <= 6; i++) {
           let btn = document.getElementById(`btn-z${i}`);
           if (targetZona === i) {
-            btn.className = "push-btn active-btn bg-emerald-600 border border-emerald-700 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2";
+            btn.className = "push-btn active-btn action-btn bg-emerald-600 border border-emerald-700 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2";
           } else {
-            btn.className = "push-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2";
+            btn.className = "push-btn action-btn bg-red-700 border border-red-800 rounded-xl py-4 font-bold cursor-pointer flex flex-col items-center gap-2";
           }
         }
       } catch(e) {}
     }
 
-    async function inviaComandoBLE(comando) {
-      if (!rxCharacteristic) return;
-      try { await rxCharacteristic.writeValueWithResponse(new TextEncoder().encode(comando)); } catch(err) {}
+    async function inviaComandoBLE(comando, messaggioSuccesso) {
+      if (!rxCharacteristic) {
+        mostraToast("Centralina non connessa", "error");
+        return;
+      }
+      try {
+        await rxCharacteristic.writeValueWithResponse(new TextEncoder().encode(comando));
+        if (messaggioSuccesso) mostraToast(messaggioSuccesso, "success");
+      } catch (err) {
+        mostraToast("Invio comando fallito", "error");
+      }
     }
 
     async function clickPushBtn(zona) {
       let btn = document.getElementById(`btn-z${zona}`);
       if (btn.classList.contains('active-btn')) {
-        zonaManualeAttivaLocale = 0; await inviaComandoBLE('STOP');
+        zonaManualeAttivaLocale = 0;
+        await inviaComandoBLE('STOP', `Zona ${zona} chiusa`);
       } else {
-        zonaManualeAttivaLocale = zona; await inviaComandoBLE(`MANUAL:${zona}`);
+        zonaManualeAttivaLocale = zona;
+        await inviaComandoBLE(`MANUAL:${zona}`, `Zona ${zona} aperta`);
       }
     }
 
-    async function forzaSpegniGraficaEHardware() { zonaManualeAttivaLocale = 0; await inviaComandoBLE('STOP'); }
+    async function forzaSpegniGraficaEHardware() {
+      zonaManualeAttivaLocale = 0;
+      await inviaComandoBLE('STOP', "Tutte le zone chiuse");
+    }
 
     async function salvaConfigurazione() {
       try {
-        const ora1 = Math.max(0, parseInt(document.getElementById('ora').value) || 0);
-        const min1 = Math.max(0, parseInt(document.getElementById('min').value) || 0);
+        const ora1 = Math.max(0, Math.min(23, parseInt(document.getElementById('ora').value) || 0));
+        const min1 = Math.max(0, Math.min(59, parseInt(document.getElementById('min').value) || 0));
         const en1 = document.getElementById('start1_attivo').checked ? 1 : 0;
-        const ora2 = Math.max(0, parseInt(document.getElementById('ora2').value) || 0);
-        const min2 = Math.max(0, parseInt(document.getElementById('min2').value) || 0);
+        const ora2 = Math.max(0, Math.min(23, parseInt(document.getElementById('ora2').value) || 0));
+        const min2 = Math.max(0, Math.min(59, parseInt(document.getElementById('min2').value) || 0));
         const en2 = document.getElementById('start2_attivo').checked ? 1 : 0;
-        
+
         let durate1 = [], durate2 = [];
         for (let i = 1; i <= 6; i++) {
-          durate1.push(Math.max(0, parseInt(document.getElementById(`d${i}`).value) || 0));
-          durate2.push(Math.max(0, parseInt(document.getElementById(`d2_${i}`).value) || 0));
+          durate1.push(Math.max(0, Math.min(255, parseInt(document.getElementById(`d${i}`).value) || 0)));
+          durate2.push(Math.max(0, Math.min(255, parseInt(document.getElementById(`d2_${i}`).value) || 0)));
         }
 
         let g1 = [], g2 = [];
@@ -311,16 +448,19 @@
           g1.push(document.getElementById(`g${g}`).checked ? 1 : 0);
           g2.push(document.getElementById(`g2_${g}`).checked ? 1 : 0);
         }
-        
-        const stringaComando = `SAVE:${ora1},${min1},en1,${ora2},${min2},${en2},${durate1.join(',')},${durate2.join(',')},${g1.join(',')},${g2.join(',')}`;
-        
+
+        // Bug corretto: prima veniva inviato il testo letterale "en1" invece del valore reale
+        const stringaComando = `SAVE:${ora1},${min1},${en1},${ora2},${min2},${en2},${durate1.join(',')},${durate2.join(',')},${g1.join(',')},${g2.join(',')}`;
+
         if (rxCharacteristic) {
           await rxCharacteristic.writeValueWithResponse(new TextEncoder().encode(stringaComando));
-          alert("Configurazione salvata con successo!");
+          mostraToast("Configurazione salvata con successo", "success");
         } else {
-          alert("Errore: Centralina non connessa!");
+          mostraToast("Errore: centralina non connessa", "error");
         }
-      } catch (errore) { alert("Errore di salvataggio. Controlla la console."); }
+      } catch (errore) {
+        mostraToast("Errore di salvataggio, controlla i valori inseriti", "error");
+      }
     }
   </script>
 </body>
