@@ -72,11 +72,51 @@
 
   <div id="toast-container" aria-live="polite"></div>
 
+  <!-- Popup visuale per irrigazione automatica -->
+  <div id="irrigazione-popup" class="hidden fixed inset-0 flex items-center justify-center z-50">
+    <div class="bg-black/70 backdrop-blur-sm p-6 rounded-2xl text-center text-white shadow-xl border border-slate-700 w-full max-w-sm">
+      <div class="flex flex-col items-center gap-4">
+        <div class="flex items-center justify-center gap-3">
+          <div class="spinner" style="width:1.25em;height:1.25em;border-width:3px;border-top-color:#059669"></div>
+          <div class="text-lg font-bold">IRRIGAZIONE IN CORSO</div>
+        </div>
+
+        <div class="text-sm text-slate-200" id="irrigazione-time">Tempo totale: --:--</div>
+
+        <div class="w-full">
+          <div class="w-full bg-slate-700 rounded-lg overflow-hidden" style="height:12px">
+            <div id="irrigazione-progress" class="bg-emerald-500 h-full" style="width:0%"></div>
+          </div>
+          <div class="mt-2 flex justify-between w-full text-xs text-slate-200">
+            <div id="irrigazione-time-mini">--:--</div>
+            <div id="irrigazione-percent">0%</div>
+          </div>
+        </div>
+
+          <!-- Per-zone progress -->
+          <div class="w-full mt-3 text-left">
+            <div class="flex items-center justify-between text-sm text-slate-300 mb-1">
+              <div>Zona <span id="irrigazione-current-zone">--</span></div>
+              <div id="irrigazione-zone-time-mini">--:--</div>
+            </div>
+            <div class="w-full bg-slate-700 rounded-lg overflow-hidden" style="height:10px">
+              <div id="irrigazione-zone-progress" class="bg-emerald-300 h-full" style="width:0%"></div>
+            </div>
+            <div class="mt-1 text-xs text-slate-200 flex justify-end"><span id="irrigazione-zone-percent">0%</span></div>
+          </div>
+
+        <div class="flex items-center gap-3">
+          <button id="irrigazione-cancel" class="push-btn bg-rose-600 text-white font-bold py-1 px-3 rounded-lg" onclick="forzaSpegniGraficaEHardware()">Annulla</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="max-w-3xl mx-auto">
 
     <header class="text-center mb-8">
-      <h1 class="text-3xl md:text-4xl font-bold text-emerald-400 flex justify-center items-center gap-3">
-        <i class="fa-solid fa-seedling"></i> Signoretti Irrigazione
+      <h1 class="text-3xl md:text-6xl font-bold text-emerald-400 flex justify-center items-center gap-3">
+        <i class="fa-solid fa-seedling"></i> Signoretti <i class="fa-solid fa-faucet"></i>
       </h1>
 
       <button id="btn-connect" class="mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-xl transition cursor-pointer shadow-md inline-flex items-center gap-2" onclick="connettiBLE()">
@@ -206,7 +246,7 @@
           <div class="flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-700">
             <span class="font-medium text-slate-300">Zona ${i}</span><i class="fa-solid fa-droplet text-xl ml-4 text-emerald-600/50"></i>
             <div class="flex items-center gap-2">
-              <input type="number" id="d${i}" min="0" max="1500" class="w-16 bg-slate-800 border border-slate-600 rounded-lg p-1.5 text-center text-slate-200 focus:outline-none">
+              <input type="number" id="d${i}" min="0" max="1800" class="w-16 bg-slate-800 border border-slate-600 rounded-lg p-1.5 text-center text-slate-200 focus:outline-none">
               <span class="text-xs text-slate-500">sec</span>
             </div>
           </div>`;
@@ -219,7 +259,7 @@
           <div class="flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-700">
             <span class="font-medium text-slate-300">Zona ${i}</span><i class="fa-solid fa-droplet text-xl ml-4 text-blue-600/50"></i>
             <div class="flex items-center gap-2">
-              <input type="number" id="d2_${i}" min="0" max="1500" class="w-16 bg-slate-800 border border-slate-600 rounded-lg p-1.5 text-center text-slate-200 focus:outline-none">
+              <input type="number" id="d2_${i}" min="0" max="1800" class="w-16 bg-slate-800 border border-slate-600 rounded-lg p-1.5 text-center text-slate-200 focus:outline-none">
               <span class="text-xs text-slate-500">sec</span>
             </div>
           </div>`;
@@ -282,6 +322,125 @@
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);
       }, 3200);
+    }
+
+    function showIrrigazionePopup() {
+      const p = document.getElementById('irrigazione-popup');
+      if (p) p.classList.remove('hidden');
+    }
+
+    function hideIrrigazionePopup() {
+      const p = document.getElementById('irrigazione-popup');
+      if (p) p.classList.add('hidden');
+    }
+
+    // Progress handling for automatic cycles
+    let _irrigazioneInterval = null;
+    let _irrigazioneStart = 0;
+    let _irrigazioneTotal = 0;
+    // Per-zone tracking
+    let _zoneDurations = [0,0,0,0,0,0]; // seconds
+    let _currentZone = 0;
+    let _zoneStartTime = 0;
+    let _zoneTotal = 0;
+
+    function setZoneDurations(arr) {
+      for (let i = 0; i < 6; i++) {
+        _zoneDurations[i] = parseInt(arr[i]) || 0;
+      }
+    }
+
+    function setCurrentZone(zone) {
+      _currentZone = parseInt(zone) || 0;
+      const zoneEl = document.getElementById('irrigazione-current-zone');
+      if (zoneEl) zoneEl.innerText = _currentZone > 0 ? _currentZone : '--';
+      _zoneTotal = _zoneDurations[_currentZone-1] || 0;
+      _zoneStartTime = Date.now();
+      const zbar = document.getElementById('irrigazione-zone-progress');
+      if (zbar) zbar.style.width = '0%';
+      const zpct = document.getElementById('irrigazione-zone-percent');
+      if (zpct) zpct.innerText = '0%';
+      const zmini = document.getElementById('irrigazione-zone-time-mini');
+      if (zmini) zmini.innerText = _zoneTotal ? `0 / ${formatTime(_zoneTotal)}` : '--:--';
+    }
+
+    function formatTime(secs) {
+      const m = Math.floor(secs/60).toString().padStart(2,'0');
+      const s = Math.floor(secs%60).toString().padStart(2,'0');
+      return `${m}:${s}`;
+    }
+
+    function startIrrigazioneProgress(totalSeconds) {
+      stopIrrigazioneProgress();
+      _irrigazioneTotal = Math.max(0, Math.floor(totalSeconds));
+      _irrigazioneStart = Date.now();
+      const timeEl = document.getElementById('irrigazione-time');
+      if (timeEl) timeEl.innerText = `Tempo totale: ${formatTime(_irrigazioneTotal)}`;
+      const bar = document.getElementById('irrigazione-progress');
+      if (bar) bar.style.width = '0%';
+      const pctEl = document.getElementById('irrigazione-percent');
+      if (pctEl) pctEl.innerText = '0%';
+      const miniEl = document.getElementById('irrigazione-time-mini');
+      if (miniEl) miniEl.innerText = `${formatTime(0)} / ${formatTime(_irrigazioneTotal)}`;
+      showIrrigazionePopup();
+      _irrigazioneInterval = setInterval(updateIrrigazioneProgress, 300);
+    }
+
+    function stopIrrigazioneProgress() {
+      if (_irrigazioneInterval) {
+        clearInterval(_irrigazioneInterval);
+        _irrigazioneInterval = null;
+      }
+      _irrigazioneStart = 0;
+      _irrigazioneTotal = 0;
+      const bar = document.getElementById('irrigazione-progress');
+      if (bar) bar.style.width = '0%';
+      const timeEl = document.getElementById('irrigazione-time');
+      if (timeEl) timeEl.innerText = 'Tempo totale: --:--';
+      const pctEl = document.getElementById('irrigazione-percent');
+      if (pctEl) pctEl.innerText = '0%';
+      const miniEl = document.getElementById('irrigazione-time-mini');
+      if (miniEl) miniEl.innerText = '--:--';
+      // reset per-zone UI
+      _currentZone = 0;
+      _zoneStartTime = 0;
+      _zoneTotal = 0;
+      const zbar = document.getElementById('irrigazione-zone-progress'); if (zbar) zbar.style.width = '0%';
+      const zmini = document.getElementById('irrigazione-zone-time-mini'); if (zmini) zmini.innerText = '--:--';
+      const zpct = document.getElementById('irrigazione-zone-percent'); if (zpct) zpct.innerText = '0%';
+      const zcur = document.getElementById('irrigazione-current-zone'); if (zcur) zcur.innerText = '--';
+      hideIrrigazionePopup();
+    }
+
+    function updateIrrigazioneProgress() {
+      if (!_irrigazioneTotal || !_irrigazioneStart) return;
+      const elapsed = Math.floor((Date.now() - _irrigazioneStart) / 1000);
+      const pct = Math.min(1, elapsed / _irrigazioneTotal);
+      const bar = document.getElementById('irrigazione-progress');
+      if (bar) bar.style.width = `${Math.round(pct*100)}%`;
+      const timeEl = document.getElementById('irrigazione-time');
+      if (timeEl) timeEl.innerText = `${formatTime(_irrigazioneTotal)}` ? `${formatTime(_irrigazioneTotal)}` : timeEl.innerText;
+      const miniEl = document.getElementById('irrigazione-time-mini');
+      if (miniEl) miniEl.innerText = `${formatTime(elapsed)} / ${formatTime(_irrigazioneTotal)}`;
+      const pctEl = document.getElementById('irrigazione-percent');
+      if (pctEl) pctEl.innerText = `${Math.round(pct*100)}%`;
+
+      // per-zone progress
+      if (_currentZone > 0 && _zoneStartTime && _zoneTotal) {
+        const zoneElapsed = Math.floor((Date.now() - _zoneStartTime) / 1000);
+        const zpct = Math.min(1, zoneElapsed / _zoneTotal);
+        const zbar = document.getElementById('irrigazione-zone-progress');
+        if (zbar) zbar.style.width = `${Math.round(zpct*100)}%`;
+        const zmini = document.getElementById('irrigazione-zone-time-mini');
+        if (zmini) zmini.innerText = `${formatTime(zoneElapsed)} / ${formatTime(_zoneTotal)}`;
+        const zpctEl = document.getElementById('irrigazione-zone-percent');
+        if (zpctEl) zpctEl.innerText = `${Math.round(zpct*100)}%`;
+        const zoneEl = document.getElementById('irrigazione-current-zone');
+        if (zoneEl) zoneEl.innerText = _currentZone;
+      }
+      if (pct >= 1) {
+        stopIrrigazioneProgress();
+      }
     }
 
     function impostaAbilitazioneComandi(abilitato) {
@@ -388,6 +547,38 @@
         }
 
         let targetZona = (parseInt(dati.z) > 0) ? parseInt(dati.z) : zonaManualeAttivaLocale;
+        // Mostra popup se la centralina sta irrigando automaticamente (zona attiva e non attivata manualmente)
+        try {
+          const zonaDaDispositivo = parseInt(dati.z) || 0;
+          if (zonaDaDispositivo > 0 && zonaManualeAttivaLocale === 0) {
+            // calcola durata totale se fornita dal dispositivo e setta durate per zona
+            let totale = 0;
+            let durateArr = [];
+            if (Array.isArray(dati.d)) {
+              durateArr = dati.d.map(v => parseInt(v) || 0);
+              totale = durateArr.reduce((a,b) => a + b, 0);
+            }
+            // fallback: usa i campi locali
+            if (!durateArr.length || !totale) {
+              for (let i=1;i<=6;i++) {
+                const v = parseInt(document.getElementById(`d${i}`).value) || 0;
+                durateArr.push(v);
+                totale += v;
+              }
+            }
+            // fallback default 60s
+            if (!totale) {
+              totale = 60;
+              durateArr = [10,10,10,10,10,10];
+            }
+            setZoneDurations(durateArr);
+            startIrrigazioneProgress(totale);
+            setCurrentZone(zonaDaDispositivo);
+          } else {
+            stopIrrigazioneProgress();
+            setCurrentZone(0);
+          }
+        } catch(e) {}
         for (let i = 1; i <= 6; i++) {
           let btn = document.getElementById(`btn-z${i}`);
           if (targetZona === i) {
@@ -407,6 +598,17 @@
       try {
         await rxCharacteristic.writeValueWithResponse(new TextEncoder().encode(comando));
         if (messaggioSuccesso) mostraToast(messaggioSuccesso, "success");
+        // Se lanciamo un ciclo di test automatico, mostra subito il popup di irrigazione e avvia il progresso
+        try {
+            if (comando === 'TEST') {
+              // Forza 10s per zona per il ciclo di test (60s totali)
+              const durate = [10,10,10,10,10,10];
+              totale = 10 * 6;
+              setZoneDurations(durate);
+              startIrrigazioneProgress(totale);
+              setCurrentZone(1);
+          }
+        } catch(e) {}
       } catch (err) {
         mostraToast("Invio comando fallito", "error");
       }
@@ -439,8 +641,8 @@
 
         let durate1 = [], durate2 = [];
         for (let i = 1; i <= 6; i++) {
-          durate1.push(Math.max(0, Math.min(1500, parseInt(document.getElementById(`d${i}`).value) || 0)));
-          durate2.push(Math.max(0, Math.min(1500, parseInt(document.getElementById(`d2_${i}`).value) || 0)));
+          durate1.push(Math.max(0, Math.min(1800, parseInt(document.getElementById(`d${i}`).value) || 0)));
+          durate2.push(Math.max(0, Math.min(1800, parseInt(document.getElementById(`d2_${i}`).value) || 0)));
         }
 
         let g1 = [], g2 = [];
