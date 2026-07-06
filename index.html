@@ -150,7 +150,7 @@
     let zonaManualeAttivaLocale = 0; 
 
     window.onload = function() {
-      // Generazione durate Start 1
+      // Generazione durate Start 1 (RIPRISTINATO sec)
       const durateDiv = document.getElementById('durate-container');
       for (let i = 1; i <= 6; i++) {
         durateDiv.innerHTML += `
@@ -158,12 +158,12 @@
             <span class="font-medium text-slate-300">Zona ${i}</span><i class="fa-solid fa-droplet text-xl ml-4 text-emerald-600/50"></i>
             <div class="flex items-center gap-2">
               <input type="number" id="d${i}" min="0" max="255" class="w-16 bg-slate-800 border border-slate-600 rounded-lg p-1.5 text-center text-slate-200 focus:outline-none">
-              <span class="text-xs text-slate-500">min</span>
+              <span class="text-xs text-slate-500">sec</span>
             </div>
           </div>`;
       }
 
-      // Generazione durate Start 2
+      // Generazione durate Start 2 (RIPRISTINATO sec)
       const durate2Div = document.getElementById('durate2-container');
       for (let i = 1; i <= 6; i++) {
         durate2Div.innerHTML += `
@@ -171,7 +171,7 @@
             <span class="font-medium text-slate-300">Zona ${i}</span><i class="fa-solid fa-droplet text-xl ml-4 text-blue-600/50"></i>
             <div class="flex items-center gap-2">
               <input type="number" id="d2_${i}" min="0" max="255" class="w-16 bg-slate-800 border border-slate-600 rounded-lg p-1.5 text-center text-slate-200 focus:outline-none">
-              <span class="text-xs text-slate-500">min</span>
+              <span class="text-xs text-slate-500">sec</span>
             </div>
           </div>`;
       }
@@ -186,7 +186,7 @@
           </label>`;
       });
 
-      // Generazione Giorni Start 2 (NUOVO)
+      // Generazione Giorni Start 2
       const giorni2Div = document.getElementById('giorni2-container');
       nomeGiorni.forEach((giorno, index) => {
         giorni2Div.innerHTML += `
@@ -277,7 +277,7 @@
 
     async function inviaComandoBLE(comando) {
       if (!rxCharacteristic) return;
-      try { await rxCharacteristic.writeValue(new TextEncoder().encode(comando)); } catch(err) {}
+      try { await rxCharacteristic.writeValueWithResponse(new TextEncoder().encode(comando)); } catch(err) {}
     }
 
     async function clickPushBtn(zona) {
@@ -312,11 +312,10 @@
           g2.push(document.getElementById(`g2_${g}`).checked ? 1 : 0);
         }
         
-        // Costruzione comando a 32 parametri
-        const stringaComando = `SAVE:${ora1},${min1},${en1},${ora2},${min2},${en2},${durate1.join(',')},${durate2.join(',')},${g1.join(',')},${g2.join(',')}`;
+        const stringaComando = `SAVE:${ora1},${min1},en1,${ora2},${min2},${en2},${durate1.join(',')},${durate2.join(',')},${g1.join(',')},${g2.join(',')}`;
         
         if (rxCharacteristic) {
-          await rxCharacteristic.writeValue(new TextEncoder().encode(stringaComando));
+          await rxCharacteristic.writeValueWithResponse(new TextEncoder().encode(stringaComando));
           alert("Configurazione salvata con successo!");
         } else {
           alert("Errore: Centralina non connessa!");
