@@ -314,18 +314,20 @@
       await inviaComandoBLE('STOP');
     }
 
-    async function salvaConfigurazione(event) {
+   async function salvaConfigurazione(event) {
       event.preventDefault();
       let ora = document.getElementById('ora').value;
       let min = document.getElementById('min').value;
+      let ora2 = document.getElementById('ora2').value; // NUOVO
+      let min2 = document.getElementById('min2').value; // NUOVO
       
-      // Costruisce stringa compatta: SAVE:ora,min,d1,d2,d3,d4,d5,d6,g0,g1...
-      let str = `SAVE:${ora},${min}`;
+      // Costruisce la stringa con il nuovo formato: SAVE:ora1,min1,ora2,min2,d1...
+      let str = `SAVE:${ora},${min},${ora2},${min2}`;
       for (let i = 1; i <= 6; i++) str += `,${document.getElementById(`d${i}`).value}`;
       for (let g = 0; g < 7; g++) str += `,${document.getElementById(`g${g}`).checked ? '1' : '0'}`;
 
       await inviaComandoBLE(str);
-      alert("Configurazione inviata e salvata!");
+      alert("Configurazione salvata con successo!");
     }
   </script>
 </body>
