@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Signoretti Irrigazione — Centralina BLE</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <!-- Sostituito con la CDN stabile di Tailwind v3 per evitare blocchi runtime del browser -->
+  <script src="https://cdn.tailwindcss.com"></script>
   <link class="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -208,6 +209,7 @@
 
   <div id="toast-container" aria-live="polite"></div>
 
+  <!-- Popup progresso ciclo automatico / test -->
   <div id="irrigazione-popup" class="hidden fixed inset-0 flex items-center justify-center z-50 p-4 bg-black/60 backdrop-blur-sm">
     <div class="panel p-6 w-full max-w-sm">
       <div class="flex flex-col items-center gap-4">
@@ -248,6 +250,7 @@
 
   <div class="max-w-3xl mx-auto">
 
+    <!-- Testata / "faceplate" -->
     <header class="panel p-5 md:p-6 mb-6">
       <div class="flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -366,4 +369,414 @@
 
       <div class="mb-6">
         <h3 class="font-mono text-[11px] uppercase tracking-[0.15em] mb-3" style="color:var(--muted)"><i class="fa-solid fa-calendar-day mr-1" style="color:var(--copper)"></i> Giorni di attivazione — Start 2</h3>
-        <div id="giorni2-container" class="flex justify-between rounded-xl p-4 overflow-x-auto gap-2"
+        <div id="giorni2-container" class="flex justify-between rounded-xl p-4 overflow-x-auto gap-2" style="background:var(--bg-void); border:1px solid var(--trace)"></div>
+      </div>
+
+      <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded-xl p-4" style="background:var(--bg-void); border:1px solid var(--trace)">
+          <h3 class="font-mono text-[11px] uppercase tracking-[0.15em] mb-2" style="color:var(--led-open)">Totale ciclo 1</h3>
+          <div class="font-mono text-3xl font-semibold" id="ciclo1-total">--:--</div>
+          <div class="text-xs mt-1" style="color:var(--muted)">Somma delle durate zone Start 1</div>
+        </div>
+        <div class="rounded-xl p-4" style="background:var(--bg-void); border:1px solid var(--trace)">
+          <h3 class="font-mono text-[11px] uppercase tracking-[0.15em] mb-2" style="color:var(--copper)">Totale ciclo 2</h3>
+          <div class="font-mono text-3xl font-semibold" id="ciclo2-total">--:--</div>
+          <div class="text-xs mt-1" style="color:var(--muted)">Somma delle durate zone Start 2</div>
+        </div>
+      </div>
+
+      <button type="button" id="btn-save" class="action-btn btn-copper w-full py-3 px-4 flex justify-center items-center gap-2 text-lg" onclick="salvaConfigurazione()" disabled>
+        <i class="fa-solid fa-floppy-disk"></i> SALVA CONFIGURAZIONE
+      </button>
+    </section>
+
+    <p class="text-center font-mono text-[10px] uppercase tracking-[0.2em] mt-6" style="color:var(--trace)">Arduino UNO R4 · ArduinoBLE · EEPROM v.ABD3</p>
+  </div>
+
+  <script>
+    const UUID_SERVIZIO = "19b10000-e8f2-537e-4f6c-d104768a1214";
+    const UUID_RX = "19b10001-e8f2-537e-4f6c-d104768a1214";
+    const UUID_TX = "19b10002-e8f2-537e-4f6c-d104768a1214";
+
+    const nomeGiorni = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
+    const nomeGiorniEsteso = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
+    const ETICHETTE_CICLO = { 1: "Ciclo Start 1", 2: "Ciclo Start 2", 3: "Ciclo di Test" };
+
+    let gattServer = null;
+    let txCharacteristic = null;
+    let rxCharacteristic = null;
+    let zonaManualeAttivaLocale = 0;
+
+    const ACTION_BUTTON_IDS = ['btn-test', 'btn-z1', 'btn-z2', 'btn-z3', 'btn-z4', 'btn-z5', 'btn-z6', 'btn-stop', 'btn-save'];
+
+    window.onload = function() {
+      const durateDiv = document.getElementById('durate-container');
+      for (let i = 1; i <= 6; i++) {
+        durateDiv.innerHTML += `
+          <div class="flex items-center justify-between rounded-xl p-3" style="background:var(--bg-void); border:1px solid var(--trace)">
+            <span class="font-medium">Zona ${i}</span><i class="fa-solid fa-droplet text-xl ml-4" style="color:var(--led-open); opacity:.4"></i>
+            <div class="flex items-center gap-2">
+              <input type="number" id="d${i}" min="0" max="1800" class="field-input w-16 p-1.5 text-center">
+              <span class="text-xs" style="color:var(--muted)">sec</span>
+            </div>
+          </div>`;
+      }
+
+      const durate2Div = document.getElementById('durate2-container');
+      for (let i = 1; i <= 6; i++) {
+        durate2Div.innerHTML += `
+          <div class="flex items-center justify-between rounded-xl p-3" style="background:var(--bg-void); border:1px solid var(--trace)">
+            <span class="font-medium">Zona ${i}</span><i class="fa-solid fa-droplet text-xl ml-4" style="color:var(--copper); opacity:.5"></i>
+            <div class="flex items-center gap-2">
+              <input type="number" id="d2_${i}" min="0" max="1800" class="field-input w-16 p-1.5 text-center">
+              <span class="text-xs" style="color:var(--muted)">sec</span>
+            </div>
+          </div>`;
+      }
+
+      document.querySelectorAll('#durate-container input, #durate2-container input').forEach(input => {
+        input.addEventListener('input', aggiornaTotaliCicli);
+      });
+      aggiornaTotaliCicli();
+
+      const giorniDiv = document.getElementById('giorni-container');
+      nomeGiorni.forEach((giorno, index) => {
+        giorniDiv.innerHTML += `
+          <label class="flex flex-col items-center gap-1 cursor-pointer min-w-[40px]">
+            <input type="checkbox" id="g${index}" class="h-4 w-4 rounded accent-[#34D399]">
+            <span class="text-xs font-semibold" style="color:var(--muted)">${giorno}</span>
+          </label>`;
+      });
+
+      const giorni2Div = document.getElementById('giorni2-container');
+      nomeGiorni.forEach((giorno, index) => {
+        giorni2Div.innerHTML += `
+          <label class="flex flex-col items-center gap-1 cursor-pointer min-w-[40px]">
+            <input type="checkbox" id="g2_${index}" class="h-4 w-4 rounded accent-[#C98A3B]">
+            <span class="text-xs font-semibold" style="color:var(--muted)">${giorno}</span>
+          </label>`;
+      });
+
+      document.querySelectorAll('input[type="number"]').forEach(input => {
+        input.addEventListener('change', () => {
+          const min = input.min !== '' ? parseInt(input.min) : -Infinity;
+          const max = input.max !== '' ? parseInt(input.max) : Infinity;
+          let val = parseInt(input.value);
+          if (isNaN(val)) val = min !== -Infinity ? min : 0;
+          input.value = Math.min(max, Math.max(min, val));
+        });
+      });
+
+      aggiornaGiornoCorrente();
+
+      if (!navigator.bluetooth) {
+        document.getElementById('connection-hint').innerText = "Questo browser non supporta il Web Bluetooth. Usa Chrome o Edge su desktop/Android.";
+        document.getElementById('btn-connect').disabled = true;
+        document.getElementById('btn-connect').classList.add('opacity-50', 'cursor-not-allowed');
+      }
+    };
+
+    function aggiornaGiornoCorrente() {
+      const oggi = new Date();
+      document.getElementById('current-day').innerText = nomeGiorniEsteso[oggi.getDay()];
+    }
+
+    function formatTime(secs) {
+      secs = Math.max(0, Math.floor(secs || 0));
+      const m = Math.floor(secs / 60).toString().padStart(2, '0');
+      const s = Math.floor(secs % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function leggiTotaleCiclo(ciclo) {
+      let totale = 0;
+      for (let i = 1; i <= 6; i++) {
+        const campo = document.getElementById(ciclo === 2 ? `d2_${i}` : `d${i}`);
+        if (campo) {
+          totale += Math.max(0, parseInt(campo.value, 10) || 0);
+        }
+      }
+      return totale;
+    }
+
+    function aggiornaTotaliCicli() {
+      const totale1 = leggiTotaleCiclo(1);
+      const totale2 = leggiTotaleCiclo(2);
+      const el1 = document.getElementById('ciclo1-total');
+      const el2 = document.getElementById('ciclo2-total');
+      if (el1) el1.innerText = formatTime(totale1);
+      if (el2) el2.innerText = formatTime(totale2);
+    }
+
+    function mostraToast(messaggio, tipo = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const icone = { success: 'fa-circle-check', error: 'fa-triangle-exclamation', info: 'fa-circle-info' };
+      toast.className = `toast toast-${tipo}`;
+      toast.innerHTML = `<i class="fa-solid ${icone[tipo] || icone.info}"></i><span>${messaggio}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.transition = 'opacity 0.3s ease';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    }
+
+    let statoCiclo = { tipo: 0, elapsedZona: 0, durZona: 0, elapsedCiclo: 0, totCiclo: 0, zona: 0, ricevutoAt: 0 };
+    let _renderInterval = null;
+
+    function showIrrigazionePopup() { document.getElementById('irrigazione-popup').classList.remove('hidden'); }
+    function hideIrrigazionePopup() { document.getElementById('irrigazione-popup').classList.add('hidden'); }
+
+    function aggiornaStatoCiclo(dati) {
+      const tipo = parseInt(dati.cicloTipo, 10) || 0;
+
+      statoCiclo = {
+        tipo: tipo,
+        elapsedZona: parseInt(dati.elapsedZona, 10) || 0,
+        durZona: parseInt(dati.durZona, 10) || 0,
+        elapsedCiclo: parseInt(dati.elapsedCiclo, 10) || 0,
+        totCiclo: parseInt(dati.totCiclo, 10) || 0,
+        zona: parseInt(dati.z, 10) || 0,
+        ricevutoAt: Date.now()
+      };
+
+      if (tipo > 0) {
+        document.getElementById('irrigazione-cycle').innerText = ETICHETTE_CICLO[tipo] || 'Ciclo attivo';
+        showIrrigazionePopup();
+        if (!_renderInterval) _renderInterval = setInterval(renderProgressoCiclo, 200);
+        renderProgressoCiclo();
+      } else {
+        fermaProgressoCiclo();
+      }
+    }
+
+    function fermaProgressoCiclo() {
+      if (_renderInterval) { clearInterval(_renderInterval); _renderInterval = null; }
+      statoCiclo.tipo = 0;
+      hideIrrigazionePopup();
+    }
+
+    function renderProgressoCiclo() {
+      if (statoCiclo.tipo === 0) return;
+      const scorso = (Date.now() - statoCiclo.ricevutoAt) / 1000;
+
+      const elapsedCiclo = statoCiclo.totCiclo > 0 ? Math.min(statoCiclo.totCiclo, statoCiclo.elapsedCiclo + scorso) : 0;
+      const pctCiclo = statoCiclo.totCiclo > 0 ? Math.min(1, elapsedCiclo / statoCiclo.totCiclo) : 0;
+      document.getElementById('irrigazione-progress').style.width = `${Math.round(pctCiclo * 100)}%`;
+      document.getElementById('irrigazione-percent').innerText = `${Math.round(pctCiclo * 100)}%`;
+      document.getElementById('irrigazione-time-mini').innerText = `${formatTime(elapsedCiclo)} / ${formatTime(statoCiclo.totCiclo)}`;
+
+      const elapsedZona = statoCiclo.durZona > 0 ? Math.min(statoCiclo.durZona, statoCiclo.elapsedZona + scorso) : 0;
+      const pctZona = statoCiclo.durZona > 0 ? Math.min(1, elapsedZona / statoCiclo.durZona) : 0;
+      document.getElementById('irrigazione-zone-progress').style.width = `${Math.round(pctZona * 100)}%`;
+      document.getElementById('irrigazione-zone-percent').innerText = `${Math.round(pctZona * 100)}%`;
+      document.getElementById('irrigazione-zone-time-mini').innerText = `${formatTime(elapsedZona)} / ${formatTime(statoCiclo.durZona)}`;
+      document.getElementById('irrigazione-current-zone').innerText = statoCiclo.zona > 0 ? statoCiclo.zona : '--';
+    }
+
+    function impostaAbilitazioneComandi(abilitato) {
+      ACTION_BUTTON_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !abilitato;
+      });
+    }
+
+    async function connettiBLE() {
+      if (!navigator.bluetooth) {
+        mostraToast("Web Bluetooth non supportato da questo browser.", "error");
+        return;
+      }
+      if (gattServer && gattServer.connected) {
+        await gattServer.disconnect();
+      }
+      gattServer = null; txCharacteristic = null; rxCharacteristic = null;
+
+      const btn = document.getElementById('btn-connect');
+      const hint = document.getElementById('connection-hint');
+      btn.disabled = true;
+      btn.className = "btn-ghost py-2.5 px-6 inline-flex items-center gap-2 cursor-wait";
+      btn.innerHTML = "<span class='spinner'></span> RICERCA DISPOSITIVO...";
+      hint.innerText = "";
+
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ name: 'Centralina_Irrigazione' }],
+          optionalServices: [UUID_SERVIZIO]
+        });
+        device.addEventListener('gattserverdisconnected', onDisconnected);
+        btn.innerHTML = "<span class='spinner'></span> CONNETTENDO...";
+
+        gattServer = await device.gatt.connect();
+        const service = await gattServer.getPrimaryService(UUID_SERVIZIO);
+        rxCharacteristic = await service.getCharacteristic(UUID_RX);
+        txCharacteristic = await service.getCharacteristic(UUID_TX);
+        await txCharacteristic.startNotifications();
+        txCharacteristic.addEventListener('characteristicvaluechanged', riceviNotificaStatoDati);
+
+        btn.disabled = false;
+        btn.className = "btn-emerald py-2.5 px-6 inline-flex items-center gap-2";
+        btn.innerHTML = "<i class='fa-solid fa-circle-check'></i> CONNESSO";
+        impostaAbilitazioneComandi(true);
+        mostraToast("Connesso alla centralina", "success");
+
+        setTimeout(async () => {
+          const d = new Date();
+          let rtcDay = d.getDay(); 
+          if(rtcDay === 0) rtcDay = 7;
+          await inviaComandoBLE(`TIME:${d.getHours()},${d.getMinutes()},${rtcDay}`);
+        }, 1000);
+      } catch (error) {
+        resetGraficaPulsante();
+        impostaAbilitazioneComandi(false);
+        if (error && error.name === 'NotFoundError') {
+          hint.innerText = "Nessun dispositivo selezionato.";
+        } else {
+          hint.innerText = "Connessione fallita. Verifica il Bluetooth.";
+          mostraToast("Connessione fallita", "error");
+        }
+      }
+    }
+
+    function onDisconnected() {
+      resetGraficaPulsante();
+      impostaAbilitazioneComandi(false);
+      zonaManualeAttivaLocale = 0;
+      fermaProgressoCiclo();
+      mostraToast("Centralina disconnessa", "error");
+    }
+
+    function resetGraficaPulsante() {
+      const btn = document.getElementById('btn-connect');
+      btn.disabled = false;
+      btn.className = "btn-copper py-2.5 px-6 inline-flex items-center gap-2";
+      btn.innerHTML = "<i class='fa-solid fa-bluetooth'></i> CONNETTI VIA BLUETOOTH";
+    }
+
+    function aggiornaLedRail(zonaAttiva) {
+      for (let i = 1; i <= 6; i++) {
+        const led = document.getElementById(`led-z${i}`);
+        if (led) led.classList.toggle('is-open', zonaAttiva === i);
+      }
+    }
+
+    async function inviaComandoBLE(stringaComando, msgSuccesso = null) {
+      if (!rxCharacteristic) {
+        mostraToast("Nessuna connessione attiva", "error");
+        return false;
+      }
+      try {
+        let encoder = new TextEncoder();
+        await rxCharacteristic.writeValue(encoder.encode(stringaComando));
+        if (msgSuccesso) mostraToast(msgSuccesso, "success");
+        return true;
+      } catch (e) {
+        mostraToast("Errore invio comando", "error");
+        return false;
+      }
+    }
+
+    async function clickPushBtn(numeroZona) {
+      if (zonaManualeAttivaLocale === numeroZona) {
+        if (await inviaComandoBLE("MANUAL:0")) zonaManualeAttivaLocale = 0;
+      } else {
+        if (await inviaComandoBLE(`MANUAL:${numeroZona}`)) zonaManualeAttivaLocale = numeroZona;
+      }
+    }
+
+    async function forzaSpegniGraficaEHardware() {
+      if (await inviaComandoBLE("STOP", "Comando di spegnimento inviato")) {
+        zonaManualeAttivaLocale = 0;
+        fermaProgressoCiclo();
+        aggiornaLedRail(0);
+      }
+    }
+
+    async function salvaConfigurazione() {
+      const h1 = document.getElementById('ora').value;
+      const m1 = document.getElementById('min').value;
+      const en1 = document.getElementById('start1_attivo').checked ? 1 : 0;
+      
+      const h2 = document.getElementById('ora2').value;
+      const m2 = document.getElementById('min2').value;
+      const en2 = document.getElementById('start2_attivo').checked ? 1 : 0;
+
+      let durate1 = [], durate2 = [], g1 = [], g2 = [];
+      for(let i=1; i<=6; i++) {
+        durate1.push(document.getElementById(`d${i}`).value || 0);
+        durate2.push(document.getElementById(`d2_${i}`).value || 0);
+      }
+      for(let g=0; g<7; g++) {
+        g1.push(document.getElementById(`g${g}`).checked ? 1 : 0);
+        g2.push(document.getElementById(`g2_${g}`).checked ? 1 : 0);
+      }
+
+      await inviaComandoBLE(`SET1:${h1},${m1},${en1}`);
+      await inviaComandoBLE(`DUR1:${durate1.join(',')}`);
+      await inviaComandoBLE(`DAYS1:${g1.join(',')}`);
+      
+      await inviaComandoBLE(`SET2:${h2},${m2},${en2}`); // Corretto qui ($)
+      await inviaComandoBLE(`DUR2:${durate2.join(',')}`);
+      const ok = await inviaComandoBLE(`DAYS2:${g2.join(',')}`);
+      
+      if(ok) mostraToast("Configurazione salvata in EEPROM!", "success");
+    }
+
+    function riceviNotificaStatoDati(event) {
+      let decoder = new TextDecoder('utf-8');
+      let dati;
+      try {
+        dati = JSON.parse(decoder.decode(event.target.value));
+      } catch (e) {
+        return; 
+      }
+
+      try {
+        document.getElementById('rtc-time').innerText = dati.rtc || "--:--";
+        
+        const qualcunoInFocus = document.activeElement && 
+                               (document.activeElement.tagName === 'INPUT' || document.activeElement.type === 'checkbox');
+
+        if (!qualcunoInFocus) {
+          document.getElementById('ora').value = dati.h;
+          document.getElementById('min').value = dati.m;
+          document.getElementById('start1_attivo').checked = (dati.en1 === 1);
+          document.getElementById('ora2').value = dati.h2;
+          document.getElementById('min2').value = dati.m2;
+          document.getElementById('start2_attivo').checked = (dati.en2 === 1);
+
+          for (let i = 0; i < 6; i++) {
+            if (dati.d && dati.d[i] !== undefined) document.getElementById(`d${i+1}`).value = dati.d[i];
+            if (dati.d2 && dati.d2[i] !== undefined) document.getElementById(`d2_${i+1}`).value = dati.d2[i];
+          }
+          aggiornaTotaliCicli();
+          
+          for (let g = 0; g < 7; g++) {
+            if (dati.g && dati.g[g] !== undefined) document.getElementById(`g${g}`).checked = (dati.g[g] === 1);
+            if (dati.g2 && dati.g2[g] !== undefined) document.getElementById(`g2_${g}`).checked = (dati.g2[g] === 1);
+          }
+        }
+
+        if (dati.cicloTipo !== undefined) {
+          aggiornaStatoCiclo(dati);
+        }
+
+        let targetZona = (parseInt(dati.z) > 0) ? parseInt(dati.z) : zonaManualeAttivaLocale;
+        aggiornaLedRail(targetZona);
+        
+        for (let i = 1; i <= 6; i++) {
+          let btn = document.getElementById(`btn-z${i}`);
+          if (btn) {
+            const aperta = (targetZona === i);
+            btn.classList.toggle('is-open', aperta);
+            const label = btn.querySelector('.valve-label');
+            if (label) label.innerText = aperta ? "aperta" : "chiusa";
+          }
+        }
+      } catch (err) {
+        // Silenzioso
+      }
+    }
+  </script>
+</body>
+</html>
