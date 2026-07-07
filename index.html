@@ -210,12 +210,17 @@
   <div id="toast-container" aria-live="polite"></div>
 
   <!-- Popup progresso ciclo automatico / test -->
-  <div id="irrigazione-popup" class="hidden fixed inset-0 flex items-center justify-center z-50 p-4 bg-black/15 backdrop-blur-[1px] ">
+  <div id="irrigazione-popup" class="hidden fixed inset-0 flex items-center justify-center z-50 p-4 bg-black/8 backdrop-blur-[px] ">
     <div class="panel p-6 w-full max-w-sm">
       <div class="flex flex-col items-center gap-4">
-        <div class="flex items-center justify-center gap-3">
-          <div class="spinner" style="width:1.15em;height:1.15em;border-width:3px;"></div>
-          <div class="font-display text-lg font-bold">IRRIGAZIONE IN CORSO</div>
+        <div class="flex items-center justify-between w-full gap-3">
+          <div class="flex items-center justify-center gap-3">
+            <div class="spinner" style="width:1.15em;height:1.15em;border-width:3px;"></div>
+            <div class="font-display text-lg font-bold">IRRIGAZIONE IN CORSO</div>
+          </div>
+          <button type="button" class="btn-ghost py-2 px-3 text-sm" onclick="hideIrrigazionePopup()" aria-label="Nascondi popup irrigazione">
+            <i class="fa-solid fa-eye-slash"></i> Nascondi
+          </button>
         </div>
         <div id="irrigazione-cycle" class="panel-eyebrow border-none pb-0 mb-0 justify-center">Ciclo attivo: --</div>
 
@@ -255,8 +260,8 @@
       <div class="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p class="font-mono text-[11px] tracking-[0.2em] uppercase" style="color:var(--copper)">SEQ-CTL / BLE-01</p>
-          <h1 class="font-display mt-1 text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
-            <i class="fa-solid fa-seedling" style="color:var(--led-open)"></i> SIGNORETTI Irrigazione
+          <h1 class="font-display mt-1 text-2xl md:text-2xl font-bold tracking-tight flex items-center gap-4">
+            <i class="fa-solid fa-seedling" style="color:var(--led-open)"></i> <span style="letter-spacing: 0.10em;">SIGNORETTI</span>
           </h1>
         </div>
         <div class="text-right">
@@ -277,14 +282,18 @@
             <div class="led-dot" id="led-z6" title="Zona 6"></div>
           </div>
         </div>
-        <p class="font-mono text-[11px] uppercase tracking-[0.15em]" style="color:var(--muted)">
-          Oggi: <span id="current-day" class="text-[var(--silk)]">--</span>
-        </p>
+        <div class="space-y-1 text-right">
+          <p class="font-mono text-[11px] uppercase tracking-[0.15em]" style="color:var(--muted)">Oggi: <span id="current-day" class="text-[var(--silk)]">--</span></p>
+          <p id="next-start-display" class="font-mono text-[11px] uppercase tracking-[0.15em]" style="color:var(--led-open)">Prossimo start: <span id="next-start" class="text-[var(--silk)]">--</span></p>
+        </div>
       </div>
 
       <div class="mt-5 flex flex-col items-center gap-2">
         <button id="btn-connect" class="btn-copper py-2.5 px-6 inline-flex items-center gap-2" onclick="connettiBLE()">
           <i class="fa-solid fa-bluetooth"></i> CONNETTI VIA BLUETOOTH
+        </button>
+        <button id="btn-open-popup" type="button" class="btn-ghost py-2 px-4 inline-flex items-center gap-2 hidden" onclick="showIrrigazionePopup()">
+          <i class="fa-solid fa-eye"></i> Mostra popup
         </button>
         <p id="connection-hint" class="text-xs min-h-[1rem]" style="color:var(--muted)"></p>
       </div>
@@ -468,16 +477,30 @@
       });
 
       document.querySelectorAll('input[type="number"]').forEach(input => {
-        input.addEventListener('change', () => {
+        const clampValue = () => {
           const min = input.min !== '' ? parseInt(input.min) : -Infinity;
           const max = input.max !== '' ? parseInt(input.max) : Infinity;
           let val = parseInt(input.value);
           if (isNaN(val)) val = min !== -Infinity ? min : 0;
           input.value = Math.min(max, Math.max(min, val));
+        };
+
+        input.addEventListener('input', () => {
+          clampValue();
+          aggiornaProssimoStart();
+        });
+        input.addEventListener('change', () => {
+          clampValue();
+          aggiornaProssimoStart();
         });
       });
 
+      document.querySelectorAll('#start1_attivo, #start2_attivo, #giorni-container input, #giorni2-container input').forEach(input => {
+        input.addEventListener('change', aggiornaProssimoStart);
+      });
+
       aggiornaGiornoCorrente();
+      aggiornaProssimoStart();
 
       if (!navigator.bluetooth) {
         document.getElementById('connection-hint').innerText = "Questo browser non supporta il Web Bluetooth. Usa Chrome o Edge su desktop/Android.";
@@ -489,6 +512,89 @@
     function aggiornaGiornoCorrente() {
       const oggi = new Date();
       document.getElementById('current-day').innerText = nomeGiorniEsteso[oggi.getDay()];
+    }
+
+    function formatDateTime(date) {
+      const dayName = nomeGiorniEsteso[date.getDay()];
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${dayName} ${day}/${month} ${hours}:${minutes}`;
+    }
+
+    function formatoProssimoStart(startId, date) {
+      return `Start ${startId} — ${formatDateTime(date)}`;
+    }
+
+    function leggiGiorniAttivi(prefisso) {
+      const giorni = [];
+      for (let i = 0; i < 7; i++) {
+        const el = document.getElementById(`${prefisso}${i}`);
+        giorni.push(el ? el.checked : false);
+      }
+      return giorni;
+    }
+
+    function calcolaProssimoStartDaConfig(startId, ora, min, giorniAttivi) {
+      if (!ora && ora !== 0) return null;
+      if (!min && min !== 0) return null;
+      const now = new Date();
+      const candidates = [];
+
+      for (let offset = 0; offset < 7; offset++) {
+        const candidate = new Date(now);
+        candidate.setDate(now.getDate() + offset);
+        candidate.setHours(ora, min, 0, 0);
+        const candidateDay = candidate.getDay();
+        if (!giorniAttivi[candidateDay]) continue;
+        if (candidate.getTime() <= now.getTime()) {
+          if (offset === 0) continue;
+        }
+        candidates.push(candidate);
+      }
+
+      if (candidates.length === 0) return null;
+      return candidates.reduce((a, b) => (a.getTime() < b.getTime() ? a : b));
+    }
+
+    function aggiornaProssimoStart() {
+      const ora1 = Math.max(0, Math.min(23, parseInt(document.getElementById('ora').value) || 0));
+      const min1 = Math.max(0, Math.min(59, parseInt(document.getElementById('min').value) || 0));
+      const en1 = document.getElementById('start1_attivo').checked;
+      const giorni1 = leggiGiorniAttivi('g');
+
+      const ora2 = Math.max(0, Math.min(23, parseInt(document.getElementById('ora2').value) || 0));
+      const min2 = Math.max(0, Math.min(59, parseInt(document.getElementById('min2').value) || 0));
+      const en2 = document.getElementById('start2_attivo').checked;
+      const giorni2 = leggiGiorniAttivi('g2_');
+
+      const nextStarts = [];
+      if (en1) {
+        const next1 = calcolaProssimoStartDaConfig(1, ora1, min1, giorni1);
+        if (next1) nextStarts.push({ startId: 1, date: next1 });
+      }
+      if (en2) {
+        const next2 = calcolaProssimoStartDaConfig(2, ora2, min2, giorni2);
+        if (next2) nextStarts.push({ startId: 2, date: next2 });
+      }
+
+      const display = document.getElementById('next-start');
+      if (!display) return;
+
+      if (nextStarts.length === 0) {
+        if ((en1 && giorni1.every(active => !active)) || (en2 && giorni2.every(active => !active))) {
+          display.innerText = 'Seleziona giorni attivi';
+        } else if (en1 || en2) {
+          display.innerText = 'Orario non valido';
+        } else {
+          display.innerText = '--';
+        }
+        return;
+      }
+
+      const next = nextStarts.reduce((a, b) => (a.date.getTime() <= b.date.getTime() ? a : b));
+      display.innerText = formatoProssimoStart(next.startId, next.date);
     }
 
     function formatTime(secs) {
@@ -534,9 +640,23 @@
 
     let statoCiclo = { tipo: 0, elapsedZona: 0, durZona: 0, elapsedCiclo: 0, totCiclo: 0, zona: 0, ricevutoAt: 0 };
     let _renderInterval = null;
+    let popupHiddenByUser = false;
 
-    function showIrrigazionePopup() { document.getElementById('irrigazione-popup').classList.remove('hidden'); }
-    function hideIrrigazionePopup() { document.getElementById('irrigazione-popup').classList.add('hidden'); }
+    function showIrrigazionePopup() {
+      popupHiddenByUser = false;
+      document.getElementById('irrigazione-popup').classList.remove('hidden');
+    }
+
+    function hideIrrigazionePopup() {
+      popupHiddenByUser = true;
+      document.getElementById('irrigazione-popup').classList.add('hidden');
+    }
+
+    function setPopupReopenVisible(visible) {
+      const button = document.getElementById('btn-open-popup');
+      if (!button) return;
+      button.classList.toggle('hidden', !visible);
+    }
 
     // Calcola il totale del ciclo a partire dagli array di durate già ricevuti,
     // invece di farlo mandare dal firmware (tiene il pacchetto BLE più corto).
@@ -568,7 +688,10 @@
         // tracciata solo lato client non è più attendibile, il firmware l'ha già chiusa.
         zonaManualeAttivaLocale = 0;
         document.getElementById('irrigazione-cycle').innerText = ETICHETTE_CICLO[tipo] || 'Ciclo attivo';
-        showIrrigazionePopup();
+        if (!popupHiddenByUser) {
+          showIrrigazionePopup();
+        }
+        setPopupReopenVisible(true);
         if (!_renderInterval) _renderInterval = setInterval(renderProgressoCiclo, 200);
         renderProgressoCiclo();
       } else {
@@ -580,6 +703,7 @@
       if (_renderInterval) { clearInterval(_renderInterval); _renderInterval = null; }
       statoCiclo.tipo = 0;
       hideIrrigazionePopup();
+      setPopupReopenVisible(false);
     }
 
     function renderProgressoCiclo() {
@@ -792,6 +916,7 @@
             if (dati.g && dati.g[g] !== undefined) document.getElementById(`g${g}`).checked = (dati.g[g] === 1);
             if (dati.g2 && dati.g2[g] !== undefined) document.getElementById(`g2_${g}`).checked = (dati.g2[g] === 1);
           }
+          aggiornaProssimoStart();
         }
 
         if (dati.ct !== undefined) {
