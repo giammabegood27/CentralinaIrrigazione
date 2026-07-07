@@ -293,8 +293,12 @@
     <section class="panel p-6 mb-6">
       <h2 class="panel-eyebrow"><i class="fa-solid fa-bolt"></i> VLV-DRV · comandi manuali</h2>
 
-      <button id="btn-test" class="action-btn btn-emerald w-full py-3 px-4 mb-6 flex justify-center items-center gap-2" onclick="inviaComandoBLE('TEST', 'Ciclo di test avviato')" disabled>
+      <button id="btn-test" class="action-btn btn-emerald w-full py-3 px-4 mb-3 flex justify-center items-center gap-2" onclick="inviaComandoBLE('TEST', 'Ciclo di test avviato')" disabled>
         <i class="fa-solid fa-vial"></i> AVVIA CICLO DI TEST SEQUENZIALE (10s a zona)
+      </button>
+
+      <button id="btn-reset-guard" class="action-btn btn-ghost w-full py-2 px-4 mb-6 flex justify-center items-center gap-2 text-sm" onclick="inviaComandoBLE('RESETGUARD', 'Blocco giornaliero azzerato: gli start possono ripartire oggi')" disabled title="Permette a Start 1/Start 2 di ripartire più volte nello stesso giorno, utile in fase di test">
+        <i class="fa-solid fa-arrow-rotate-left"></i> RESET BLOCCO GIORNALIERO START
       </button>
 
       <h3 class="text-center font-mono text-[11px] uppercase tracking-[0.15em] mb-4" style="color:var(--muted)">Attivazione manuale valvole</h3>
@@ -407,7 +411,7 @@
     let rxCharacteristic = null;
     let zonaManualeAttivaLocale = 0;
 
-    const ACTION_BUTTON_IDS = ['btn-test', 'btn-z1', 'btn-z2', 'btn-z3', 'btn-z4', 'btn-z5', 'btn-z6', 'btn-stop', 'btn-save'];
+    const ACTION_BUTTON_IDS = ['btn-test', 'btn-reset-guard', 'btn-z1', 'btn-z2', 'btn-z3', 'btn-z4', 'btn-z5', 'btn-z6', 'btn-stop', 'btn-save'];
 
     window.onload = function() {
       const durateDiv = document.getElementById('durate-container');
