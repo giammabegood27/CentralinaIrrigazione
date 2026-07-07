@@ -267,13 +267,14 @@
         <div class="text-right">
           <p class="font-mono text-[11px] tracking-[0.15em] uppercase" style="color:var(--muted)">Orologio RTC</p>
           <p id="rtc-time" class="font-mono text-2xl font-semibold">--:--</p>
+          <p id="current-day" class="font-mono text-[11px] uppercase tracking-[0.15em] mt-1" style="color:var(--muted)">--</p>
         </div>
       </div>
 
       <div class="mt-5 pt-4 flex items-center justify-between gap-3 flex-wrap" style="border-top:1px dashed var(--trace)">
-        <div class="flex items-center gap-2">
-          <span class="font-mono text-[11px] uppercase tracking-[0.15em] mr-1" style="color:var(--muted)">Valvole</span>
-          <div id="led-rail" class="flex gap-2">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="font-mono text-[15px] uppercase tracking-[0.15em]" style="color:var(--muted)">Valvole</span>
+          <div id="led-rail" class="flex gap-3">
             <div class="led-dot" id="led-z1" title="Zona 1"></div>
             <div class="led-dot" id="led-z2" title="Zona 2"></div>
             <div class="led-dot" id="led-z3" title="Zona 3"></div>
@@ -281,10 +282,7 @@
             <div class="led-dot" id="led-z5" title="Zona 5"></div>
             <div class="led-dot" id="led-z6" title="Zona 6"></div>
           </div>
-        </div>
-        <div class="space-y-1 text-right">
-          <p class="font-mono text-[11px] uppercase tracking-[0.15em]" style="color:var(--muted)">Oggi: <span id="current-day" class="text-[var(--silk)]">--</span></p>
-          <p id="next-start-display" class="font-mono text-[11px] uppercase tracking-[0.15em]" style="color:var(--led-open)">Prossimo start: <span id="next-start" class="text-[var(--silk)]">--</span></p>
+          <p id="next-start-display" class=" font-mono text-[13px] uppercase tracking-[0.15em]" style="color:var(--led-open)">Prossimo start: <span id="next-start" class="text-[var(--silk)]">--</span></p>
         </div>
       </div>
 
@@ -419,6 +417,7 @@
 
     const nomeGiorni = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
     const nomeGiorniEsteso = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
+    const nomeGiorniUpper = ["DOMENICA", "LUNEDI", "MARTEDI", "MERCOLEDI", "GIOVEDI", "VENERDI", "SABATO"];
     const ETICHETTE_CICLO = { 1: "Ciclo Start 1", 2: "Ciclo Start 2", 3: "Ciclo di Test" };
 
     let gattServer = null;
@@ -510,8 +509,16 @@
     };
 
     function aggiornaGiornoCorrente() {
-      const oggi = new Date();
-      document.getElementById('current-day').innerText = nomeGiorniEsteso[oggi.getDay()];
+      aggiornaCurrentDayDisplay();
+    }
+
+    function aggiornaCurrentDayDisplay() {
+      const display = document.getElementById('current-day');
+      if (!display) return;
+
+      const now = new Date();
+      const dayName = nomeGiorniUpper[now.getDay()];
+      display.innerText = dayName;
     }
 
     function formatDateTime(date) {
@@ -894,6 +901,7 @@
 
       try {
         document.getElementById('rtc-time').innerText = dati.rtc || "--:--";
+        aggiornaCurrentDayDisplay();
 
         const qualcunoInFocus = document.activeElement &&
                                (document.activeElement.tagName === 'INPUT' || document.activeElement.type === 'checkbox');
