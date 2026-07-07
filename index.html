@@ -300,12 +300,12 @@
     <section class="panel p-6 mb-6">
       <div class="flex items-center justify-between mb-4">
       <h2 class="panel-eyebrow"><i class="fa-solid fa-bolt"></i> VLV-DRV · comandi manuali</h2>
-        <button type="button" id="btn-toggle-manual" class="btn-ghost py-2 px-3 text-sm" onclick="toggleManualCommands()" aria-expanded="true">
-          <i class="fa-solid fa-chevron-up"></i> Nascondi
+        <button type="button" id="btn-toggle-manual" class="btn-ghost py-2 px-3 text-sm" onclick="toggleManualCommands()" aria-expanded="false">
+          <i class="fa-solid fa-chevron-down"></i> Mostra
         </button>
       </div>
 
-      <div id="manual-commands-body">
+      <div id="manual-commands-body" class="hidden">
       <button id="btn-test" class="action-btn btn-emerald w-full py-3 px-4 mb-3 flex justify-center items-center gap-2" onclick="inviaComandoBLE('TEST', 'Ciclo di test avviato')" disabled>
         <i class="fa-solid fa-vial"></i> AVVIA CICLO DI TEST SEQUENZIALE (10s a zona)
       </button>
