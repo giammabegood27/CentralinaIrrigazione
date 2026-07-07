@@ -10,7 +10,7 @@
   <link class="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght=500;700&family=IBM+Plex+Mono:wght=500;600&family=Inter:wght=400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
     :root {
@@ -293,7 +293,7 @@
     <section class="panel p-6 mb-6">
       <h2 class="panel-eyebrow"><i class="fa-solid fa-bolt"></i> VLV-DRV · comandi manuali</h2>
 
-      <button id="btn-test" class="action-btn btn-emerald w-full py-3 px-4 mb-6 flex justify-center items-center gap-2" onclick="inviaComandoBLE('TEST')" disabled>
+      <button id="btn-test" class="action-btn btn-emerald w-full py-3 px-4 mb-6 flex justify-center items-center gap-2" onclick="inviaComandoBLE('TEST', 'Ciclo di test avviato')" disabled>
         <i class="fa-solid fa-vial"></i> AVVIA CICLO DI TEST SEQUENZIALE (10s a zona)
       </button>
 
@@ -542,6 +542,9 @@
       };
 
       if (tipo > 0) {
+        // Un ciclo reale (automatico o test) è ora al comando: qualunque zona manuale
+        // tracciata solo lato client non è più attendibile, il firmware l'ha già chiusa.
+        zonaManualeAttivaLocale = 0;
         document.getElementById('irrigazione-cycle').innerText = ETICHETTE_CICLO[tipo] || 'Ciclo attivo';
         showIrrigazionePopup();
         if (!_renderInterval) _renderInterval = setInterval(renderProgressoCiclo, 200);
@@ -622,9 +625,7 @@
 
         setTimeout(async () => {
           const d = new Date();
-          let rtcDay = d.getDay(); 
-          if(rtcDay === 0) rtcDay = 7;
-          await inviaComandoBLE(`TIME:${d.getHours()},${d.getMinutes()},${rtcDay}`);
+          await inviaComandoBLE(`TIME:${d.getHours()},${d.getMinutes()},${d.getDay()}`);
         }, 1000);
       } catch (error) {
         resetGraficaPulsante();
@@ -693,33 +694,38 @@
     }
 
     async function salvaConfigurazione() {
-      const h1 = document.getElementById('ora').value;
-      const m1 = document.getElementById('min').value;
-      const en1 = document.getElementById('start1_attivo').checked ? 1 : 0;
-      
-      const h2 = document.getElementById('ora2').value;
-      const m2 = document.getElementById('min2').value;
-      const en2 = document.getElementById('start2_attivo').checked ? 1 : 0;
+      try {
+        const ora1 = Math.max(0, Math.min(23, parseInt(document.getElementById('ora').value) || 0));
+        const min1 = Math.max(0, Math.min(59, parseInt(document.getElementById('min').value) || 0));
+        const en1 = document.getElementById('start1_attivo').checked ? 1 : 0;
+        const ora2 = Math.max(0, Math.min(23, parseInt(document.getElementById('ora2').value) || 0));
+        const min2 = Math.max(0, Math.min(59, parseInt(document.getElementById('min2').value) || 0));
+        const en2 = document.getElementById('start2_attivo').checked ? 1 : 0;
 
-      let durate1 = [], durate2 = [], g1 = [], g2 = [];
-      for(let i=1; i<=6; i++) {
-        durate1.push(document.getElementById(`d${i}`).value || 0);
-        durate2.push(document.getElementById(`d2_${i}`).value || 0);
-      }
-      for(let g=0; g<7; g++) {
-        g1.push(document.getElementById(`g${g}`).checked ? 1 : 0);
-        g2.push(document.getElementById(`g2_${g}`).checked ? 1 : 0);
-      }
+        let durate1 = [], durate2 = [];
+        for (let i = 1; i <= 6; i++) {
+          durate1.push(Math.max(0, Math.min(1800, parseInt(document.getElementById(`d${i}`).value) || 0)));
+          durate2.push(Math.max(0, Math.min(1800, parseInt(document.getElementById(`d2_${i}`).value) || 0)));
+        }
 
-      await inviaComandoBLE(`SET1:${h1},${m1},${en1}`);
-      await inviaComandoBLE(`DUR1:${durate1.join(',')}`);
-      await inviaComandoBLE(`DAYS1:${g1.join(',')}`);
-      
-      await inviaComandoBLE(`SET2:${h2},${m2},${en2}`); // Corretto qui ($)
-      await inviaComandoBLE(`DUR2:${durate2.join(',')}`);
-      const ok = await inviaComandoBLE(`DAYS2:${g2.join(',')}`);
-      
-      if(ok) mostraToast("Configurazione salvata in EEPROM!", "success");
+        let g1 = [], g2 = [];
+        for (let g = 0; g < 7; g++) {
+          g1.push(document.getElementById(`g${g}`).checked ? 1 : 0);
+          g2.push(document.getElementById(`g2_${g}`).checked ? 1 : 0);
+        }
+
+        // Un unico comando atomico, nell'ordine atteso dallo sscanf del firmware:
+        // h1,m1,e1,h2,m2,e2, durate1[0..5], durate2[0..5], g1[0..6], g2[0..6]
+        const stringaComando = `SAVE:${ora1},${min1},${en1},${ora2},${min2},${en2},${durate1.join(',')},${durate2.join(',')},${g1.join(',')},${g2.join(',')}`;
+
+        if (await inviaComandoBLE(stringaComando)) {
+          mostraToast("Configurazione salvata in EEPROM!", "success");
+        } else {
+          mostraToast("Errore: centralina non connessa", "error");
+        }
+      } catch (errore) {
+        mostraToast("Errore di salvataggio, controlla i valori inseriti", "error");
+      }
     }
 
     function riceviNotificaStatoDati(event) {
@@ -728,13 +734,13 @@
       try {
         dati = JSON.parse(decoder.decode(event.target.value));
       } catch (e) {
-        return; 
+        return;
       }
 
       try {
         document.getElementById('rtc-time').innerText = dati.rtc || "--:--";
-        
-        const qualcunoInFocus = document.activeElement && 
+
+        const qualcunoInFocus = document.activeElement &&
                                (document.activeElement.tagName === 'INPUT' || document.activeElement.type === 'checkbox');
 
         if (!qualcunoInFocus) {
@@ -750,7 +756,7 @@
             if (dati.d2 && dati.d2[i] !== undefined) document.getElementById(`d2_${i+1}`).value = dati.d2[i];
           }
           aggiornaTotaliCicli();
-          
+
           for (let g = 0; g < 7; g++) {
             if (dati.g && dati.g[g] !== undefined) document.getElementById(`g${g}`).checked = (dati.g[g] === 1);
             if (dati.g2 && dati.g2[g] !== undefined) document.getElementById(`g2_${g}`).checked = (dati.g2[g] === 1);
@@ -763,7 +769,7 @@
 
         let targetZona = (parseInt(dati.z) > 0) ? parseInt(dati.z) : zonaManualeAttivaLocale;
         aggiornaLedRail(targetZona);
-        
+
         for (let i = 1; i <= 6; i++) {
           let btn = document.getElementById(`btn-z${i}`);
           if (btn) {
