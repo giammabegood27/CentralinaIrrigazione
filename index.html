@@ -528,15 +528,27 @@
     function showIrrigazionePopup() { document.getElementById('irrigazione-popup').classList.remove('hidden'); }
     function hideIrrigazionePopup() { document.getElementById('irrigazione-popup').classList.add('hidden'); }
 
+    // Calcola il totale del ciclo a partire dagli array di durate già ricevuti,
+    // invece di farlo mandare dal firmware (tiene il pacchetto BLE più corto).
+    function calcolaTotaleCicloDaDati(dati, tipo) {
+      if (tipo === 3) {
+        if (!Array.isArray(dati.d)) return 0;
+        return dati.d.reduce((acc, v) => acc + ((parseInt(v, 10) || 0) > 0 ? 10 : 0), 0);
+      }
+      const arr = tipo === 2 ? dati.d2 : dati.d;
+      if (!Array.isArray(arr)) return 0;
+      return arr.reduce((acc, v) => acc + (parseInt(v, 10) || 0), 0);
+    }
+
     function aggiornaStatoCiclo(dati) {
-      const tipo = parseInt(dati.cicloTipo, 10) || 0;
+      const tipo = parseInt(dati.ct, 10) || 0;
 
       statoCiclo = {
         tipo: tipo,
-        elapsedZona: parseInt(dati.elapsedZona, 10) || 0,
-        durZona: parseInt(dati.durZona, 10) || 0,
-        elapsedCiclo: parseInt(dati.elapsedCiclo, 10) || 0,
-        totCiclo: parseInt(dati.totCiclo, 10) || 0,
+        elapsedZona: parseInt(dati.ez, 10) || 0,
+        durZona: parseInt(dati.dz, 10) || 0,
+        elapsedCiclo: parseInt(dati.ec, 10) || 0,
+        totCiclo: calcolaTotaleCicloDaDati(dati, tipo),
         zona: parseInt(dati.z, 10) || 0,
         ricevutoAt: Date.now()
       };
@@ -763,7 +775,7 @@
           }
         }
 
-        if (dati.cicloTipo !== undefined) {
+        if (dati.ct !== undefined) {
           aggiornaStatoCiclo(dati);
         }
 
