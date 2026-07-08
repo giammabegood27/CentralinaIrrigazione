@@ -766,7 +766,7 @@
 
       try {
         const device = await navigator.bluetooth.requestDevice({
-          filters: [{ name: 'Centralina_Irrigazione' }],
+          filters: [{ name: 'SIGNORETTI_Garden' }],
           optionalServices: [UUID_SERVIZIO]
         });
         device.addEventListener('gattserverdisconnected', onDisconnected);
